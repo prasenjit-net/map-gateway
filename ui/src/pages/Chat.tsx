@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import OpenAI from 'openai'
 import { createMCPClient, type MCPClient, type Transport } from '../lib/mcp-client'
-import { Send, Settings, Eye, EyeOff, ChevronDown, ChevronRight, Plus, Loader2 } from 'lucide-react'
+import { Send, Settings, ChevronDown, ChevronRight, Plus, Loader2, KeyRound } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 interface Message {
@@ -11,6 +11,17 @@ interface Message {
   toolName?: string
   toolArgs?: Record<string, unknown>
   isStreaming?: boolean
+}
+
+interface ServerChatConfig {
+  model: string
+  hasKey: boolean
+}
+
+async function fetchChatConfig(): Promise<ServerChatConfig> {
+  const res = await fetch('/_api/chat/config')
+  if (!res.ok) throw new Error('Failed to load chat config')
+  return res.json() as Promise<ServerChatConfig>
 }
 
 function ToolCallBlock({ name, args, expanded: initExpanded = false }: { name: string; args: Record<string, unknown>; expanded?: boolean }) {
@@ -72,14 +83,13 @@ function MessageBubble({ msg }: { msg: Message }) {
   )
 }
 
-const MODELS = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo']
+const MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo']
 
 export default function Chat() {
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('chat_api_key') ?? '')
+  const [serverConfig, setServerConfig] = useState<ServerChatConfig | null>(null)
   const [model, setModel] = useState(() => localStorage.getItem('chat_model') ?? 'gpt-4o')
   const [transport, setTransport] = useState<Transport>(() => (localStorage.getItem('chat_transport') as Transport) ?? 'http')
   const [systemPrompt, setSystemPrompt] = useState(() => localStorage.getItem('chat_system_prompt') ?? 'You are a helpful assistant with access to tools.')
-  const [showKey, setShowKey] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(true)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -91,10 +101,22 @@ export default function Chat() {
 
   const nextId = () => String(++idRef.current)
 
+  // Load server-side chat config (model default + key presence check) on mount.
+  useEffect(() => {
+    fetchChatConfig()
+      .then(cfg => {
+        setServerConfig(cfg)
+        // Use server model as default only if user hasn't saved a preference.
+        if (!localStorage.getItem('chat_model')) {
+          setModel(cfg.model)
+        }
+      })
+      .catch(() => setServerConfig({ model: 'gpt-4o', hasKey: false }))
+  }, [])
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const saveSettings = () => {
-    localStorage.setItem('chat_api_key', apiKey)
     localStorage.setItem('chat_model', model)
     localStorage.setItem('chat_transport', transport)
     localStorage.setItem('chat_system_prompt', systemPrompt)
@@ -123,7 +145,10 @@ export default function Chat() {
 
   const handleSend = async () => {
     if (!input.trim() || loading) return
-    if (!apiKey) { setError('Please set your OpenAI API key in settings'); return }
+    if (!serverConfig?.hasKey) {
+      setError('OpenAI API key is not configured on the server. Set openai_api_key in gateway.yaml or OPENAI_API_KEY env var.')
+      return
+    }
     setError('')
 
     const userText = input.trim()
@@ -136,7 +161,13 @@ export default function Chat() {
       const client = await getMCPClient()
       const tools = await client.listTools()
 
-      const openaiClient = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
+      // The API key is managed server-side. We point the SDK at our proxy
+      // endpoint (/_api/chat) which injects the real key before forwarding.
+      const openaiClient = new OpenAI({
+        apiKey: 'server-managed',
+        baseURL: `${window.location.origin}/_api/chat`,
+        dangerouslyAllowBrowser: true,
+      })
 
       const history: OpenAI.ChatCompletionMessageParam[] = [
         { role: 'system', content: systemPrompt },
@@ -243,20 +274,18 @@ export default function Chat() {
         </button>
         {settingsOpen && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">OpenAI API Key</label>
-              <div className="relative">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm pr-9 focus:outline-none focus:border-blue-500"
-                />
-                <button onClick={() => setShowKey(!showKey)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-                  {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+            {/* Key status badge — key is managed server-side */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700">
+              <KeyRound className="w-4 h-4 flex-shrink-0 text-gray-400" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">OpenAI API Key</p>
+                {serverConfig === null ? (
+                  <p className="text-xs text-gray-500">Loading…</p>
+                ) : serverConfig.hasKey ? (
+                  <p className="text-xs text-green-400 font-medium">Configured on server ✓</p>
+                ) : (
+                  <p className="text-xs text-red-400 font-medium">Not set — add to gateway.yaml</p>
+                )}
               </div>
             </div>
             <div>
@@ -265,6 +294,9 @@ export default function Chat() {
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
                 {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
+              {serverConfig && (
+                <p className="text-xs text-gray-500 mt-1">Server default: {serverConfig.model}</p>
+              )}
             </div>
             <div>
               <label className="text-xs text-gray-400 block mb-2">Transport</label>

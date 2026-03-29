@@ -14,6 +14,11 @@ type Config struct {
 	MaxResponseBytes int64  `yaml:"max_response_bytes"`
 	UIDevProxy       string `yaml:"ui_dev_proxy"`
 	GatewaySecret    string `yaml:"-"`
+
+	// OpenAI settings for the built-in chat/test client.
+	// The API key is never exposed to the browser.
+	OpenAIAPIKey string `yaml:"openai_api_key"`
+	OpenAIModel  string `yaml:"openai_model"`
 }
 
 func Load() (*Config, error) {
@@ -48,6 +53,16 @@ func Load() (*Config, error) {
 		cfg.UIDevProxy = v
 	}
 	cfg.GatewaySecret = os.Getenv("GATEWAY_SECRET")
+
+	if v := os.Getenv("OPENAI_API_KEY"); v != "" {
+		cfg.OpenAIAPIKey = v
+	}
+	if v := os.Getenv("OPENAI_MODEL"); v != "" {
+		cfg.OpenAIModel = v
+	}
+	if cfg.OpenAIModel == "" {
+		cfg.OpenAIModel = "gpt-4o"
+	}
 
 	return cfg, nil
 }
