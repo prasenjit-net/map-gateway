@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"mcp-gateway/auth"
+	"mcp-gateway/telemetry"
 )
 
 type SSEServer struct {
@@ -49,8 +50,10 @@ func (s *SSEServer) HandleSSE(w http.ResponseWriter, r *http.Request) {
 		cancel:  cancel,
 	}
 	s.sessions.Store(sessionID, session)
+	telemetry.ActiveSessions.Inc()
 	defer func() {
 		s.sessions.Delete(sessionID)
+		telemetry.ActiveSessions.Dec()
 		cancel()
 	}()
 

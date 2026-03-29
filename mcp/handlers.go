@@ -12,6 +12,7 @@ import (
 	"mcp-gateway/proxy"
 	"mcp-gateway/registry"
 	"mcp-gateway/store"
+	"mcp-gateway/telemetry"
 )
 
 type HandlerDeps struct {
@@ -125,6 +126,14 @@ func (h *HandlerDeps) handleToolsCall(ctx context.Context, req *Request, inbound
 	content, err := proxy.MapResponse(resp, h.Config.MaxResponseBytes)
 	isError := err != nil || resp.StatusCode >= 400
 	_ = h.Store.IncrementStats(tool.OperationID, latencyMs, isError)
+
+	// Prometheus metrics
+	status := "success"
+	if isError {
+		status = "error"
+	}
+	telemetry.ToolCallsTotal.WithLabelValues(tool.SpecID, tool.OperationID, status).Inc()
+	telemetry.ProxyDuration.WithLabelValues(tool.SpecID, tool.OperationID).Observe(float64(latencyMs) / 1000)
 
 	if err != nil {
 		return &Response{

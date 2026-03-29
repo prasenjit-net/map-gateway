@@ -1,0 +1,24 @@
+services:
+  gateway:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - LISTEN_ADDR=:8080
+      - DATA_DIR=/data
+      - LOG_LEVEL=info
+      - GATEWAY_SECRET=change-me-in-production
+    volumes:
+      - gateway-data:/data
+    depends_on:
+      - mock-api
+    restart: unless-stopped
+
+  # Example mock upstream using httpbin
+  mock-api:
+    image: kennethreitz/httpbin
+    ports:
+      - "8081:80"
+
+volumes:
+  gateway-data:
