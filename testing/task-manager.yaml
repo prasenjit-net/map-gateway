@@ -160,6 +160,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
+              example:
+                id: "proj_abc123"
+                name: "Website Redesign"
+                description: "Revamp the public-facing company website for Q3 launch"
+                colour: "#3B82F6"
+                task_count: 12
+                created_at: "2026-01-15T10:00:00Z"
+                updated_at: "2026-03-28T14:30:00Z"
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -187,6 +195,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectDetail'
+              example:
+                id: "proj_abc123"
+                name: "Website Redesign"
+                description: "Revamp the public-facing company website for Q3 launch"
+                colour: "#3B82F6"
+                task_count: 12
+                created_at: "2026-01-15T10:00:00Z"
+                updated_at: "2026-03-28T14:30:00Z"
+                tasks_by_status:
+                  todo: 4
+                  in_progress: 3
+                  done: 5
+                  cancelled: 0
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -227,6 +248,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
+              example:
+                id: "proj_abc123"
+                name: "Website Redesign"
+                description: "Revamp the public-facing company website for Q3 launch"
+                colour: "#3B82F6"
+                task_count: 12
+                created_at: "2026-01-15T10:00:00Z"
+                updated_at: "2026-03-29T09:00:00Z"
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -319,6 +348,31 @@ paths:
                     type: integer
                   offset:
                     type: integer
+              example:
+                data:
+                  - id: "task_111"
+                    project_id: "proj_abc123"
+                    title: "Design new homepage"
+                    status: "in_progress"
+                    priority: "high"
+                    assignee: "alice@example.com"
+                    due_date: "2026-04-15"
+                    comment_count: 2
+                    created_at: "2026-02-01T09:00:00Z"
+                    updated_at: "2026-03-28T10:00:00Z"
+                  - id: "task_222"
+                    project_id: "proj_abc123"
+                    title: "Write API docs"
+                    status: "todo"
+                    priority: "medium"
+                    assignee: "bob@example.com"
+                    due_date: "2026-04-20"
+                    comment_count: 0
+                    created_at: "2026-02-05T11:00:00Z"
+                    updated_at: "2026-02-05T11:00:00Z"
+                total: 12
+                limit: 50
+                offset: 0
 
     post:
       operationId: createTask
@@ -375,6 +429,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Task'
+              example:
+                id: "task_111"
+                project_id: "proj_abc123"
+                title: "Design new homepage"
+                status: "todo"
+                priority: "high"
+                assignee: "alice@example.com"
+                due_date: "2026-04-15"
+                comment_count: 0
+                created_at: "2026-03-28T16:00:00Z"
+                updated_at: "2026-03-28T16:00:00Z"
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -399,6 +464,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskDetail'
+              example:
+                id: "task_111"
+                project_id: "proj_abc123"
+                title: "Design new homepage"
+                description: "Create wireframes and final mockups for the new homepage in Figma. Needs to match brand guidelines and be mobile-responsive."
+                status: "in_progress"
+                priority: "high"
+                assignee: "alice@example.com"
+                due_date: "2026-04-15"
+                comment_count: 2
+                created_at: "2026-02-01T09:00:00Z"
+                updated_at: "2026-03-28T10:00:00Z"
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -454,6 +531,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Task'
+              example:
+                id: "task_111"
+                project_id: "proj_abc123"
+                title: "Design new homepage"
+                status: "in_progress"
+                priority: "high"
+                assignee: "alice@example.com"
+                due_date: "2026-04-15"
+                comment_count: 2
+                created_at: "2026-02-01T09:00:00Z"
+                updated_at: "2026-03-29T08:00:00Z"
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -504,6 +592,19 @@ paths:
                       $ref: '#/components/schemas/Comment'
                   total:
                     type: integer
+              example:
+                data:
+                  - id: "cmt_aaa"
+                    task_id: "task_111"
+                    body: "Started the mockups in Figma"
+                    author: "alice@example.com"
+                    created_at: "2026-03-28T10:00:00Z"
+                  - id: "cmt_bbb"
+                    task_id: "task_111"
+                    body: "Looks great! I left some feedback."
+                    author: "bob@example.com"
+                    created_at: "2026-03-28T14:30:00Z"
+                total: 2
 
     post:
       operationId: addComment
@@ -545,6 +646,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Comment'
+              example:
+                id: "cmt_aaa"
+                task_id: "task_111"
+                body: "Started the mockups in Figma"
+                author: "alice@example.com"
+                created_at: "2026-03-28T10:00:00Z"
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -623,6 +730,33 @@ paths:
                               description: Relevance score (higher = better match)
                   total:
                     type: integer
+              example:
+                data:
+                  - id: "task_111"
+                    project_id: "proj_abc123"
+                    title: "Design new homepage"
+                    status: "in_progress"
+                    priority: "high"
+                    assignee: "alice@example.com"
+                    due_date: "2026-04-15"
+                    comment_count: 2
+                    created_at: "2026-02-01T09:00:00Z"
+                    updated_at: "2026-03-28T10:00:00Z"
+                    project_name: "Website Redesign"
+                    score: 0.98
+                  - id: "task_333"
+                    project_id: "proj_def456"
+                    title: "Implement login screen"
+                    status: "done"
+                    priority: "critical"
+                    assignee: "alice@example.com"
+                    due_date: "2026-03-01"
+                    comment_count: 0
+                    created_at: "2026-01-10T08:00:00Z"
+                    updated_at: "2026-03-01T17:00:00Z"
+                    project_name: "Mobile App"
+                    score: 0.75
+                total: 2
 
   /stats:
     get:
