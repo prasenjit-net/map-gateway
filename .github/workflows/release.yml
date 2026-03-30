@@ -67,6 +67,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Stub ui/dist for embed
+        run: mkdir -p ui/dist && touch ui/dist/.gitkeep
+
       - name: Go vet
         run: go vet ./...
 
@@ -97,6 +100,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Stub ui/dist for embed
+        run: mkdir -p ui/dist && touch ui/dist/.gitkeep
 
       - name: Go test
         run: go test ./...
