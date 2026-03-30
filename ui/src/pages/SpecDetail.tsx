@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSpec, toggleOperation, type OperationRecord } from '../lib/api'
+import { getSpec, toggleOperation, updateSpec, type OperationRecord } from '../lib/api'
 import MethodBadge from '../components/MethodBadge'
-import { ArrowLeft, Copy, Check, Search, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Copy, Check, Search, ChevronDown, Pencil, X, Save } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { cn } from '../lib/utils'
 
@@ -15,6 +15,120 @@ function CopyButton({ text }: { text: string }) {
       {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? 'Copied' : 'Copy'}
     </button>
+  )
+}
+
+function SpecSettings({ spec, specId }: { spec: { name: string; upstream_url: string; passthrough_auth: boolean; passthrough_cookies: boolean; passthrough_headers: string[] }; specId: string }) {
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(spec.name)
+  const [upstreamUrl, setUpstreamUrl] = useState(spec.upstream_url)
+  const [passthroughAuth, setPassthroughAuth] = useState(spec.passthrough_auth)
+  const [passthroughCookies, setPassthroughCookies] = useState(spec.passthrough_cookies)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+
+  const startEdit = () => {
+    setName(spec.name)
+    setUpstreamUrl(spec.upstream_url)
+    setPassthroughAuth(spec.passthrough_auth)
+    setPassthroughCookies(spec.passthrough_cookies)
+    setSaveError('')
+    setEditing(true)
+  }
+  const cancelEdit = () => { setEditing(false); setSaveError('') }
+
+  const handleSave = async () => {
+    if (!upstreamUrl.trim()) { setSaveError('Upstream URL is required'); return }
+    setSaving(true)
+    setSaveError('')
+    try {
+      await updateSpec(specId, {
+        name: name.trim() || spec.name,
+        upstream_url: upstreamUrl.trim(),
+        passthrough_auth: passthroughAuth,
+        passthrough_cookies: passthroughCookies,
+      })
+      void queryClient.invalidateQueries({ queryKey: ['spec', specId] })
+      setEditing(false)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-white">{spec.name}</h2>
+          <p className="text-gray-400 text-sm font-mono mt-0.5">{spec.upstream_url}</p>
+        </div>
+        <button onClick={startEdit}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors mt-1 flex-shrink-0">
+          <Pencil className="w-3.5 h-3.5" /> Edit
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-sm font-medium text-white">Edit Spec Settings</span>
+        <button onClick={cancelEdit} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Name</label>
+          <input value={name} onChange={e => setName(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Upstream URL</label>
+          <input value={upstreamUrl} onChange={e => setUpstreamUrl(e.target.value)}
+            placeholder="https://api.example.com"
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500" />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-4 pt-1">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <button type="button" onClick={() => setPassthroughAuth(v => !v)}
+            className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+              passthroughAuth ? 'bg-blue-600' : 'bg-gray-700')}>
+            <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform',
+              passthroughAuth ? 'translate-x-4' : 'translate-x-1')} />
+          </button>
+          <span className="text-sm text-gray-300">Passthrough Auth</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <button type="button" onClick={() => setPassthroughCookies(v => !v)}
+            className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+              passthroughCookies ? 'bg-blue-600' : 'bg-gray-700')}>
+            <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform',
+              passthroughCookies ? 'translate-x-4' : 'translate-x-1')} />
+          </button>
+          <span className="text-sm text-gray-300">Passthrough Cookies</span>
+        </label>
+      </div>
+
+      {saveError && <p className="text-red-400 text-xs">{saveError}</p>}
+
+      <div className="flex gap-2 pt-1">
+        <button onClick={() => { void handleSave() }} disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors">
+          <Save className="w-3.5 h-3.5" />
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+        <button onClick={cancelEdit}
+          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -72,12 +186,11 @@ export default function SpecDetail() {
   return (
     <div className="p-6">
       <div className="flex items-center gap-3 mb-6">
-        <Link to="/specs" className="text-gray-400 hover:text-white transition-colors">
+        <Link to="/specs" className="text-gray-400 hover:text-white transition-colors flex-shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div>
-          <h2 className="text-2xl font-bold text-white">{spec.name}</h2>
-          <p className="text-gray-400 text-sm font-mono">{spec.upstream_url}</p>
+        <div className="flex-1 min-w-0">
+          <SpecSettings spec={spec} specId={specId} />
         </div>
       </div>
 

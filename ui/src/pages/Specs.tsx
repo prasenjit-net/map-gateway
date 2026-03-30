@@ -4,6 +4,21 @@ import { Link } from '@tanstack/react-router'
 import { listSpecs, uploadSpec, deleteSpec, type SpecRecord, type UploadSpecPayload } from '../lib/api'
 import { Plus, Trash2, Eye, X, Upload, Shield, Cookie } from 'lucide-react'
 import { cn } from '../lib/utils'
+import * as yaml from 'js-yaml'
+
+interface SpecMeta { title?: string; serverUrl?: string }
+
+function extractSpecMeta(text: string, filename: string): SpecMeta {
+  try {
+    const doc = (filename.endsWith('.json') ? JSON.parse(text) : yaml.load(text)) as Record<string, unknown>
+    const title = (doc?.info as Record<string, unknown>)?.title as string | undefined
+    const servers = doc?.servers as Array<{ url?: string }> | undefined
+    const serverUrl = servers?.[0]?.url
+    return { title, serverUrl }
+  } catch {
+    return {}
+  }
+}
 
 function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient()
@@ -28,12 +43,24 @@ function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => void })
     onError: (e: Error) => setErrorMsg(e.message),
   })
 
+  const applyFileMeta = useCallback((f: File) => {
+    setFile(f)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const meta = extractSpecMeta(text, f.name)
+      if (meta.title && !name) setName(meta.title)
+      if (meta.serverUrl && !upstreamUrl) setUpstreamUrl(meta.serverUrl)
+    }
+    reader.readAsText(f)
+  }, [name, upstreamUrl])
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
     const f = e.dataTransfer.files[0]
-    if (f) setFile(f)
-  }, [])
+    if (f) applyFileMeta(f)
+  }, [applyFileMeta])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,12 +86,13 @@ function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => void })
         <form onSubmit={handleSubmit} className="flex-1 p-5 space-y-4">
           <div>
             <label className="text-sm text-gray-400 block mb-1">Display Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} required
+            <input value={name} onChange={e => setName(e.target.value)}
+              placeholder="Auto-filled from spec info.title"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
           </div>
           <div>
             <label className="text-sm text-gray-400 block mb-1">Upstream Base URL</label>
-            <input value={upstreamUrl} onChange={e => setUpstreamUrl(e.target.value)} required placeholder="https://api.example.com"
+            <input value={upstreamUrl} onChange={e => setUpstreamUrl(e.target.value)} placeholder="Auto-filled from spec servers[0]"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
           </div>
           <div>
@@ -84,7 +112,7 @@ function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => void })
                 <p className="text-sm text-gray-400">Drop .yaml, .yml, or .json<br />or click to browse</p>
               )}
               <input id="spec-file-input" type="file" accept=".yaml,.yml,.json" className="hidden"
-                onChange={e => e.target.files?.[0] && setFile(e.target.files[0])} />
+                onChange={e => e.target.files?.[0] && applyFileMeta(e.target.files[0])} />
             </div>
           </div>
           <div className="space-y-3">

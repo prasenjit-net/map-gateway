@@ -1,0 +1,324 @@
+openapi: 3.0.3
+info:
+  title: JSONPlaceholder Todos API
+  description: |
+    A subset of the JSONPlaceholder fake REST API covering the **Todo** resource.
+    JSONPlaceholder is a free online REST API that returns synthetic data, ideal
+    for prototyping and testing MCP tool integrations.
+
+    All write operations (POST, PUT, PATCH, DELETE) are accepted and return
+    realistic responses but **do not persist changes** — the data resets on
+    every request cycle.
+
+    **Todo object fields:**
+    | Field       | Type    | Description                                     |
+    |-------------|---------|-------------------------------------------------|
+    | `id`        | integer | Auto-assigned unique identifier (1–200)         |
+    | `userId`    | integer | ID of the user this todo belongs to (1–10)      |
+    | `title`     | string  | Short description of the task                   |
+    | `completed` | boolean | Whether the task has been completed             |
+  version: "1.0.0"
+  contact:
+    name: JSONPlaceholder
+    url: https://jsonplaceholder.typicode.com
+
+servers:
+  - url: https://jsonplaceholder.typicode.com
+    description: JSONPlaceholder public API
+
+tags:
+  - name: Todos
+    description: CRUD operations for the Todo entity
+
+paths:
+  /todos:
+    get:
+      operationId: listTodos
+      summary: List all todos
+      description: |
+        Returns all 200 todos. Supports optional query-string filters to narrow
+        results by `userId` or `completed` status.
+      tags: [Todos]
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            example: 1
+          description: Filter todos that belong to a specific user (1–10).
+        - name: completed
+          in: query
+          required: false
+          schema:
+            type: boolean
+            example: false
+          description: Filter by completion status (`true` or `false`).
+      responses:
+        "200":
+          description: Array of Todo objects (possibly filtered).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+              example:
+                - id: 1
+                  userId: 1
+                  title: "delectus aut autem"
+                  completed: false
+                - id: 2
+                  userId: 1
+                  title: "quis ut nam facilis et officia qui"
+                  completed: false
+                - id: 3
+                  userId: 1
+                  title: "fugiat veniam minus"
+                  completed: false
+                - id: 4
+                  userId: 1
+                  title: "et porro tempora"
+                  completed: true
+                - id: 5
+                  userId: 1
+                  title: "laboriosam mollitia et enim quasi adipisci quia provident illum"
+                  completed: false
+
+    post:
+      operationId: createTodo
+      summary: Create a new todo
+      description: |
+        Creates a new Todo. JSONPlaceholder does not persist the record but
+        returns a synthetic response with `id: 201` to simulate a successful
+        creation.
+      tags: [Todos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoInput'
+            example:
+              userId: 1
+              title: "Buy groceries"
+              completed: false
+      responses:
+        "201":
+          description: The newly created Todo (id is always 201 in the fake API).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: 201
+                userId: 1
+                title: "Buy groceries"
+                completed: false
+
+  /todos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          example: 1
+        description: Unique numeric identifier of the Todo (1–200).
+
+    get:
+      operationId: getTodo
+      summary: Get a todo by ID
+      description: |
+        Retrieves a single Todo by its `id`. Valid IDs are 1–200; any other
+        value returns 404.
+      tags: [Todos]
+      responses:
+        "200":
+          description: The requested Todo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: 1
+                userId: 1
+                title: "delectus aut autem"
+                completed: false
+        "404":
+          description: No todo found for the given ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+              example: {}
+
+    put:
+      operationId: replaceTodo
+      summary: Replace a todo (full update)
+      description: |
+        Fully replaces the Todo identified by `id`. All writable fields must be
+        provided; omitted fields are treated as absent (not preserved).
+        Changes are not persisted but the response mirrors what a real API
+        would return.
+      tags: [Todos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoInput'
+            example:
+              userId: 1
+              title: "Buy groceries and cook dinner"
+              completed: true
+      responses:
+        "200":
+          description: The updated Todo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: 1
+                userId: 1
+                title: "Buy groceries and cook dinner"
+                completed: true
+        "404":
+          description: No todo found for the given ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+              example: {}
+
+    patch:
+      operationId: updateTodo
+      summary: Partially update a todo
+      description: |
+        Applies a partial update to the Todo identified by `id`. Only the fields
+        included in the request body are changed; omitted fields retain their
+        current values. Useful for toggling `completed` without resending the
+        full object.
+      tags: [Todos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoPatch'
+            example:
+              completed: true
+      responses:
+        "200":
+          description: The Todo after applying the partial update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: 1
+                userId: 1
+                title: "delectus aut autem"
+                completed: true
+        "404":
+          description: No todo found for the given ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+              example: {}
+
+    delete:
+      operationId: deleteTodo
+      summary: Delete a todo
+      description: |
+        Deletes the Todo with the given `id`. Returns an empty object `{}` on
+        success. The deletion is simulated — no data is actually removed from
+        JSONPlaceholder's store.
+      tags: [Todos]
+      responses:
+        "200":
+          description: Deletion acknowledged (empty body).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+              example: {}
+        "404":
+          description: No todo found for the given ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+              example: {}
+
+components:
+  schemas:
+    Todo:
+      type: object
+      description: A Todo item as returned by the JSONPlaceholder API.
+      required: [id, userId, title, completed]
+      properties:
+        id:
+          type: integer
+          description: Auto-assigned unique identifier.
+          example: 1
+        userId:
+          type: integer
+          description: ID of the user this todo is associated with.
+          example: 1
+        title:
+          type: string
+          description: Short description of the task to be done.
+          example: "delectus aut autem"
+        completed:
+          type: boolean
+          description: Whether this task has been marked as done.
+          example: false
+
+    TodoInput:
+      type: object
+      description: Payload for creating or fully replacing a Todo.
+      required: [userId, title, completed]
+      properties:
+        userId:
+          type: integer
+          description: ID of the user to assign this todo to.
+          example: 1
+        title:
+          type: string
+          description: Short description of the task.
+          example: "Buy groceries"
+        completed:
+          type: boolean
+          description: Initial completion state.
+          example: false
+
+    TodoPatch:
+      type: object
+      description: |
+        Partial update payload — include only the fields you want to modify.
+        Omitted fields keep their current values.
+      properties:
+        userId:
+          type: integer
+          description: Reassign to a different user.
+          example: 2
+        title:
+          type: string
+          description: Updated task description.
+          example: "Buy groceries and cook dinner"
+        completed:
+          type: boolean
+          description: Updated completion flag.
+          example: true
+
+    Empty:
+      type: object
+      description: Empty JSON object returned on deletion or when a resource is not found.
+      example: {}

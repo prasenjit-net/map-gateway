@@ -79,6 +79,15 @@ func (h *specsHandler) createFromRaw(w http.ResponseWriter, name, upstreamURL st
 		return
 	}
 
+	// Auto-fill name from info.title when not provided
+	if name == "" && parsed.Doc.Info != nil {
+		name = parsed.Doc.Info.Title
+	}
+	// Auto-fill upstream from first servers entry when not provided
+	if upstreamURL == "" && len(parsed.Doc.Servers) > 0 {
+		upstreamURL = parsed.Doc.Servers[0].URL
+	}
+
 	id := uuid.New().String()
 	now := time.Now()
 	rec := &store.SpecRecord{

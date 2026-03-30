@@ -1,8 +1,9 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, FileCode2, BarChart2, MessageSquare, Activity } from 'lucide-react'
+import { LayoutDashboard, FileCode2, BarChart2, MessageSquare } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getHealth } from '../lib/api'
 import { cn } from '../lib/utils'
+import Logo from './Logo'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -25,11 +26,14 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-56 bg-gray-900 border-r border-gray-800 flex flex-col">
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-400" />
-            MCP Gateway
-          </h1>
-          <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex items-center gap-2.5">
+            <Logo size={32} />
+            <div>
+              <h1 className="text-sm font-bold text-white leading-tight">MCP Gateway</h1>
+              <p className="text-xs text-gray-500 leading-tight">API → MCP bridge</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 mt-2.5">
             <span className={cn('w-2 h-2 rounded-full', health?.status === 'ok' ? 'bg-green-400' : 'bg-red-400')} />
             <span className="text-xs text-gray-400">{health?.status === 'ok' ? `v${health.version}` : 'offline'}</span>
           </div>

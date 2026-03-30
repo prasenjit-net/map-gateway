@@ -217,6 +217,9 @@ func schemaToMap(s *openapi3.Schema) map[string]interface{} {
 		}
 		m["properties"] = props
 	}
+	if s.Items != nil && s.Items.Value != nil {
+		m["items"] = schemaToMap(s.Items.Value)
+	}
 	if len(s.Required) > 0 {
 		m["required"] = s.Required
 	}
