@@ -68,7 +68,7 @@ jobs:
           cache: true
 
       - name: Stub ui/dist for embed
-        run: mkdir -p ui/dist && touch ui/dist/.gitkeep
+        run: mkdir -p ui/dist && echo "" > ui/dist/index.html
 
       - name: Go vet
         run: go vet ./...
@@ -102,7 +102,7 @@ jobs:
           cache: true
 
       - name: Stub ui/dist for embed
-        run: mkdir -p ui/dist && touch ui/dist/.gitkeep
+        run: mkdir -p ui/dist && echo "" > ui/dist/index.html
 
       - name: Go test
         run: go test ./...
