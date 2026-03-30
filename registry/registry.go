@@ -4,11 +4,13 @@ import (
 	"sync"
 
 	"github.com/prasenjit-net/mcp-gateway/spec"
+	"github.com/prasenjit-net/mcp-gateway/store"
 )
 
 type Registry struct {
 	mu          sync.RWMutex
 	tools       map[string]*spec.ToolDefinition
+	resources   []*store.ResourceRecord
 	subscribers []chan struct{}
 }
 
@@ -74,4 +76,47 @@ func (r *Registry) notifySubscribers(subs []chan struct{}) {
 		default:
 		}
 	}
+}
+
+func (r *Registry) RebuildResources(resources []*store.ResourceRecord) {
+	r.mu.Lock()
+	r.resources = resources
+	subs := r.subscribers
+	r.mu.Unlock()
+	r.notifySubscribers(subs)
+}
+
+func (r *Registry) ListStaticResources() []*store.ResourceRecord {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []*store.ResourceRecord
+	for _, res := range r.resources {
+		if !res.IsTemplate {
+			out = append(out, res)
+		}
+	}
+	return out
+}
+
+func (r *Registry) ListTemplateResources() []*store.ResourceRecord {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []*store.ResourceRecord
+	for _, res := range r.resources {
+		if res.IsTemplate {
+			out = append(out, res)
+		}
+	}
+	return out
+}
+
+func (r *Registry) GetResourceByID(id string) (*store.ResourceRecord, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, res := range r.resources {
+		if res.ID == id {
+			return res, true
+		}
+	}
+	return nil, false
 }

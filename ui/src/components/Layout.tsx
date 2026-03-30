@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, FileCode2, BarChart2, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, FileCode2, BarChart2, MessageSquare, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getHealth } from '../lib/api'
 import { cn } from '../lib/utils'
@@ -8,6 +8,7 @@ import Logo from './Logo'
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/specs', label: 'Specs', icon: FileCode2 },
+  { to: '/resources', label: 'Resources', icon: Database },
   { to: '/stats', label: 'Stats', icon: BarChart2 },
   { to: '/chat', label: 'Chat', icon: MessageSquare },
 ]

@@ -47,7 +47,13 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	Tools *ToolsCapability `json:"tools,omitempty"`
+	Tools     *ToolsCapability     `json:"tools,omitempty"`
+	Resources *ResourcesCapability `json:"resources,omitempty"`
+}
+
+type ResourcesCapability struct {
+	Subscribe   bool `json:"subscribe"`
+	ListChanged bool `json:"listChanged"`
 }
 
 type ClientCapabilities struct{}
@@ -84,4 +90,46 @@ type CallToolParams struct {
 type CallToolResult struct {
 	Content []proxy.MCPContent `json:"content"`
 	IsError bool               `json:"isError,omitempty"`
+}
+
+type Resource struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
+type ResourceTemplate struct {
+	URITemplate string `json:"uriTemplate"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
+type ResourceContent struct {
+	URI      string `json:"uri"`
+	MimeType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+	Blob     string `json:"blob,omitempty"` // base64 for binary
+}
+
+type ListResourcesParams struct {
+	Cursor string `json:"cursor,omitempty"`
+}
+
+type ListResourcesResult struct {
+	Resources  []Resource `json:"resources"`
+	NextCursor string     `json:"nextCursor,omitempty"`
+}
+
+type ListResourceTemplatesResult struct {
+	ResourceTemplates []ResourceTemplate `json:"resourceTemplates"`
+}
+
+type ReadResourceParams struct {
+	URI string `json:"uri"`
+}
+
+type ReadResourceResult struct {
+	Contents []ResourceContent `json:"contents"`
 }

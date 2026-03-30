@@ -18,4 +18,9 @@ type Store interface {
 	IncrementStats(operationID string, latencyMs int64, isError bool) error
 	GetAllStats() (map[string]*ToolStats, error)
 	GetStats(operationID string) (*ToolStats, error)
+
+	SaveResource(r *ResourceRecord) error
+	GetResource(id string) (*ResourceRecord, error)
+	ListResources() ([]*ResourceRecord, error)
+	DeleteResource(id string) error
 }

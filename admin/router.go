@@ -45,6 +45,14 @@ func RegisterRoutes(mux *http.ServeMux, deps *Deps) {
 	mux.HandleFunc("GET /_api/chat/config", corsMiddleware(chatHdlr.GetConfig))
 	mux.HandleFunc("POST /_api/chat/completions", corsMiddleware(chatHdlr.Completions))
 
+	resourcesHdlr := &resourcesHandler{store: deps.Store, registry: deps.Registry, config: deps.Config}
+	mux.HandleFunc("POST /_api/resources", corsMiddleware(resourcesHdlr.Create))
+	mux.HandleFunc("GET /_api/resources", corsMiddleware(resourcesHdlr.List))
+	mux.HandleFunc("GET /_api/resources/{id}", corsMiddleware(resourcesHdlr.Get))
+	mux.HandleFunc("PATCH /_api/resources/{id}", corsMiddleware(resourcesHdlr.Update))
+	mux.HandleFunc("DELETE /_api/resources/{id}", corsMiddleware(resourcesHdlr.Delete))
+	mux.HandleFunc("GET /_api/resources/{id}/content", corsMiddleware(resourcesHdlr.GetContent))
+
 	mux.HandleFunc("OPTIONS /", corsPreflightHandler)
 }
 

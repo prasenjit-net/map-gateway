@@ -126,3 +126,75 @@ export async function getHealth(): Promise<{status: string, uptime: string, vers
   const res = await fetch(`${BASE}/health`)
   return handleResponse(res)
 }
+
+export interface ResourceRecord {
+  id: string
+  name: string
+  description?: string
+  type: 'file' | 'text' | 'upstream'
+  mime_type: string
+  file_path?: string
+  upstream_url?: string
+  is_template: boolean
+  uri_template?: string
+  passthrough_auth: boolean
+  passthrough_cookies: boolean
+  passthrough_headers?: string[]
+  created_at: string
+  updated_at: string
+}
+
+export async function listResources(): Promise<ResourceRecord[]> {
+  const res = await fetch(`${BASE}/resources`)
+  return handleResponse(res)
+}
+
+export async function createResourceFile(file: File, meta: { name: string; description?: string; mime_type?: string }): Promise<ResourceRecord> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('name', meta.name)
+  if (meta.description) form.append('description', meta.description)
+  if (meta.mime_type) form.append('mime_type', meta.mime_type)
+  const res = await fetch(`${BASE}/resources`, { method: 'POST', body: form })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function createResourceText(payload: { name: string; description?: string; mime_type?: string; content: string }): Promise<ResourceRecord> {
+  const res = await fetch(`${BASE}/resources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'text', ...payload })
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function createResourceUpstream(payload: {
+  name: string; description?: string; mime_type?: string
+  upstream_url: string; uri_template?: string
+  passthrough_auth: boolean; passthrough_cookies: boolean; passthrough_headers?: string[]
+}): Promise<ResourceRecord> {
+  const res = await fetch(`${BASE}/resources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'upstream', ...payload })
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deleteResource(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/resources/${id}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) throw new Error('Failed to delete resource')
+}
+
+export async function updateResource(id: string, patch: Partial<ResourceRecord>): Promise<ResourceRecord> {
+  const res = await fetch(`${BASE}/resources/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch)
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}

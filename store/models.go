@@ -5,6 +5,28 @@ import (
 	"time"
 )
 
+type ResourceRecord struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type"` // "file" | "text" | "upstream"
+	MimeType    string `json:"mime_type"`
+
+	// file + text: path relative to dataDir
+	FilePath string `json:"file_path,omitempty"`
+
+	// upstream only
+	UpstreamURL        string   `json:"upstream_url,omitempty"`
+	IsTemplate         bool     `json:"is_template"`
+	URITemplate        string   `json:"uri_template,omitempty"`
+	PassthroughAuth    bool     `json:"passthrough_auth"`
+	PassthroughCookies bool     `json:"passthrough_cookies"`
+	PassthroughHeaders []string `json:"passthrough_headers,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type SpecRecord struct {
 	ID                 string    `json:"id"`
 	Name               string    `json:"name"`

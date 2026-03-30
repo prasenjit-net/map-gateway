@@ -287,4 +287,5 @@ func RebuildRegistryFromStore(st store.Store, reg *registry.Registry) {
 	}
 
 	reg.RebuildAll(allTools)
+	rebuildResources(st, reg)
 }

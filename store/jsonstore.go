@@ -24,6 +24,7 @@ func NewJSONStore(dataDir string) (*JSONStore, error) {
 		filepath.Join(dataDir, "operations"),
 		filepath.Join(dataDir, "auth"),
 		filepath.Join(dataDir, "stats"),
+		filepath.Join(dataDir, "resources"),
 	}
 	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0755); err != nil {
@@ -244,4 +245,57 @@ func (s *JSONStore) GetStats(operationID string) (*ToolStats, error) {
 	}
 	cp := *st
 	return &cp, nil
+}
+
+func (s *JSONStore) SaveResource(r *ResourceRecord) error {
+	path := filepath.Join(s.dataDir, "resources", r.ID+".json")
+	return writeJSONAtomic(path, r)
+}
+
+func (s *JSONStore) GetResource(id string) (*ResourceRecord, error) {
+	var rec ResourceRecord
+	path := filepath.Join(s.dataDir, "resources", id+".json")
+	if err := readJSON(path, &rec); err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
+func (s *JSONStore) ListResources() ([]*ResourceRecord, error) {
+	dir := filepath.Join(s.dataDir, "resources")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var resources []*ResourceRecord
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		id := e.Name()[:len(e.Name())-5]
+		rec, err := s.GetResource(id)
+		if err != nil {
+			continue
+		}
+		resources = append(resources, rec)
+	}
+	return resources, nil
+}
+
+func (s *JSONStore) DeleteResource(id string) error {
+	rec, err := s.GetResource(id)
+	if err != nil {
+		return err
+	}
+	// Remove stored file if present
+	if rec.FilePath != "" {
+		absPath := filepath.Join(s.dataDir, rec.FilePath)
+		_ = os.Remove(absPath)
+		// Remove parent dir if empty
+		parentDir := filepath.Dir(absPath)
+		if entries, err := os.ReadDir(parentDir); err == nil && len(entries) == 0 {
+			_ = os.Remove(parentDir)
+		}
+	}
+	return os.Remove(filepath.Join(s.dataDir, "resources", id+".json"))
 }

@@ -2,8 +2,14 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +42,12 @@ func (h *HandlerDeps) Handle(ctx context.Context, req *Request, inbound *auth.In
 		return h.handleToolsList(req)
 	case "tools/call":
 		return h.handleToolsCall(ctx, req, inbound)
+	case "resources/list":
+		return h.handleResourcesList(req)
+	case "resources/templates/list":
+		return h.handleResourceTemplatesList(req)
+	case "resources/read":
+		return h.handleResourcesRead(ctx, req, inbound)
 	default:
 		return &Response{
 			JSONRPC: "2.0",
@@ -52,7 +64,8 @@ func (h *HandlerDeps) handleInitialize(req *Request) *Response {
 	result := InitializeResult{
 		ProtocolVersion: MCPVersion,
 		Capabilities: ServerCapabilities{
-			Tools: &ToolsCapability{ListChanged: true},
+			Tools:     &ToolsCapability{ListChanged: true},
+			Resources: &ResourcesCapability{Subscribe: false, ListChanged: true},
 		},
 		ServerInfo: ServerInfo{
 			Name:    "mcp-gateway",
@@ -177,4 +190,116 @@ func (h *HandlerDeps) getAuthenticator(specID string) auth.Authenticator {
 
 	h.Authenticators[specID] = a
 	return a
+}
+
+func (h *HandlerDeps) handleResourcesList(req *Request) *Response {
+	resources := h.Registry.ListStaticResources()
+	mcpResources := make([]Resource, 0, len(resources))
+	for _, r := range resources {
+		mcpResources = append(mcpResources, Resource{
+			URI:         "gateway://resources/" + r.ID,
+			Name:        r.Name,
+			Description: r.Description,
+			MimeType:    r.MimeType,
+		})
+	}
+	return &Response{JSONRPC: "2.0", ID: req.ID, Result: ListResourcesResult{Resources: mcpResources}}
+}
+
+func (h *HandlerDeps) handleResourceTemplatesList(req *Request) *Response {
+	resources := h.Registry.ListTemplateResources()
+	templates := make([]ResourceTemplate, 0, len(resources))
+	for _, r := range resources {
+		uriTemplate := r.URITemplate
+		if uriTemplate == "" {
+			uriTemplate = "gateway://resources/" + r.ID
+		}
+		templates = append(templates, ResourceTemplate{
+			URITemplate: uriTemplate,
+			Name:        r.Name,
+			Description: r.Description,
+			MimeType:    r.MimeType,
+		})
+	}
+	return &Response{JSONRPC: "2.0", ID: req.ID, Result: ListResourceTemplatesResult{ResourceTemplates: templates}}
+}
+
+func (h *HandlerDeps) handleResourcesRead(ctx context.Context, req *Request, inbound *auth.InboundAuth) *Response {
+	var params ReadResourceParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return errResponse(req.ID, -32602, "invalid params: "+err.Error())
+	}
+
+	uri := params.URI
+	prefix := "gateway://resources/"
+	if !strings.HasPrefix(uri, prefix) {
+		return errResponse(req.ID, -32602, "unsupported resource URI: "+uri)
+	}
+	id := strings.TrimPrefix(uri, prefix)
+	if idx := strings.IndexByte(id, '?'); idx >= 0 {
+		id = id[:idx]
+	}
+
+	record, ok := h.Registry.GetResourceByID(id)
+	if !ok {
+		return errResponse(req.ID, -32002, "resource not found: "+id)
+	}
+
+	var content ResourceContent
+	content.URI = uri
+	content.MimeType = record.MimeType
+
+	switch record.Type {
+	case "file", "text":
+		filePath := filepath.Join(h.Config.DataDir, record.FilePath)
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return errResponse(req.ID, -32603, "error reading resource: "+err.Error())
+		}
+		if isBinaryMime(record.MimeType) {
+			content.Blob = base64.StdEncoding.EncodeToString(data)
+		} else {
+			content.Text = string(data)
+		}
+	case "upstream":
+		httpReq, err := http.NewRequestWithContext(ctx, "GET", record.UpstreamURL, nil)
+		if err != nil {
+			return errResponse(req.ID, -32603, "error building upstream request: "+err.Error())
+		}
+		if record.PassthroughAuth && inbound != nil && inbound.Authorization != "" {
+			httpReq.Header.Set("Authorization", inbound.Authorization)
+		}
+		if record.PassthroughCookies && inbound != nil && inbound.Cookie != "" {
+			httpReq.Header.Set("Cookie", inbound.Cookie)
+		}
+		resp, err := h.Proxy.DoMTLS(httpReq, false)
+		if err != nil {
+			return errResponse(req.ID, -32603, "error fetching upstream: "+err.Error())
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(resp.Body, h.Config.MaxResponseBytes))
+		if err != nil {
+			return errResponse(req.ID, -32603, "error reading upstream response: "+err.Error())
+		}
+		content.Text = string(body)
+		if ct := resp.Header.Get("Content-Type"); ct != "" && content.MimeType == "" {
+			content.MimeType = ct
+		}
+	default:
+		return errResponse(req.ID, -32603, "unknown resource type: "+record.Type)
+	}
+
+	return &Response{JSONRPC: "2.0", ID: req.ID, Result: ReadResourceResult{Contents: []ResourceContent{content}}}
+}
+
+func errResponse(id interface{}, code int, msg string) *Response {
+	return &Response{JSONRPC: "2.0", ID: id, Error: &RPCError{Code: code, Message: msg}}
+}
+
+func isBinaryMime(mime string) bool {
+	return strings.HasPrefix(mime, "image/") ||
+		strings.HasPrefix(mime, "audio/") ||
+		strings.HasPrefix(mime, "video/") ||
+		mime == "application/octet-stream" ||
+		mime == "application/pdf"
 }
