@@ -41,7 +41,12 @@ func (h *statsHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		"enabledTools":   len(tools),
 		"totalCalls":     totalCalls,
 		"totalErrors":    totalErrors,
-		"activeSessions": h.sse.ActiveSessionCount(),
+		"activeSessions": func() int {
+			if h.sse == nil {
+				return 0
+			}
+			return h.sse.ActiveSessionCount()
+		}(),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)

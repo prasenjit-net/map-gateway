@@ -55,8 +55,14 @@ jobs:
       - name: Stub ui/dist for embed
         run: mkdir -p ui/dist && echo "" > ui/dist/index.html
 
-      - name: Go test
-        run: go test ./...
+      - name: Go test with coverage
+        run: |
+          PKGS=$(go list ./... | grep -v 'ui/node_modules')
+          go test $PKGS -coverprofile=coverage.out -covermode=atomic
+          COVERAGE=$(go tool cover -func=coverage.out | grep "^total:" | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%  (threshold: 60%)"
+          awk "BEGIN { exit (${COVERAGE} < 60) }" \
+            || (echo "FAIL: coverage ${COVERAGE}% is below 60%" && exit 1)
 
   build:
     name: Build

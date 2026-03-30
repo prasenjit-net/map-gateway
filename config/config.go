@@ -24,13 +24,33 @@ type MTLSConfig struct {
 	CAFile   string `toml:"ca_file"`
 }
 
+// CORSConfig controls Cross-Origin Resource Sharing headers on all API routes.
+// Leave AllowedOrigins empty (default) to deny all cross-origin requests.
+// Use ["*"] to allow any origin (not recommended for production).
+type CORSConfig struct {
+	// AllowedOrigins is the list of origins permitted to make cross-origin requests.
+	// An empty list (default) disables CORS — only same-origin requests are served.
+	AllowedOrigins []string `toml:"allowed_origins"`
+	// AllowedMethods defaults to the standard set when not specified.
+	AllowedMethods []string `toml:"allowed_methods"`
+	// AllowedHeaders defaults to Content-Type and Authorization when not specified.
+	AllowedHeaders []string `toml:"allowed_headers"`
+}
+
 type Config struct {
 	ListenAddr       string `toml:"listen_addr"`
 	DataDir          string `toml:"data_dir"`
 	LogLevel         string `toml:"log_level"`
 	MaxResponseBytes int64  `toml:"max_response_bytes"`
 	UIDevProxy       string `toml:"ui_dev_proxy"`
-	GatewaySecret    string `toml:"-"`
+	GatewaySecret    string `toml:"-"` // from GATEWAY_SECRET env only
+
+	// AdminPassword protects the admin UI and API with form-based authentication.
+	// Set via ADMIN_PASSWORD env var or admin.password in config file.
+	// When empty, the admin interface is accessible without authentication (dev mode).
+	AdminPassword string `toml:"admin_password"`
+	// AdminSessionTTL is the lifetime of an admin session cookie in hours (default 24).
+	AdminSessionTTL int `toml:"admin_session_ttl_hours"`
 
 	// OpenAI settings for the built-in chat/test client.
 	// The API key is never exposed to the browser.
@@ -39,6 +59,7 @@ type Config struct {
 
 	TLS  TLSConfig  `toml:"tls"`
 	MTLS MTLSConfig `toml:"mtls"`
+	CORS CORSConfig `toml:"cors"`
 }
 
 // DefaultConfig returns a Config populated with sensible defaults.
@@ -49,6 +70,12 @@ func DefaultConfig() *Config {
 		LogLevel:         "info",
 		MaxResponseBytes: 1048576,
 		OpenAIModel:      "gpt-4o",
+		AdminSessionTTL:  24,
+		CORS: CORSConfig{
+			AllowedOrigins: []string{},
+			AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+			AllowedHeaders: []string{"Content-Type", "Authorization"},
+		},
 	}
 }
 
@@ -89,6 +116,9 @@ func Load(path string) (*Config, error) {
 		cfg.UIDevProxy = v
 	}
 	cfg.GatewaySecret = os.Getenv("GATEWAY_SECRET")
+	if v := os.Getenv("ADMIN_PASSWORD"); v != "" {
+		cfg.AdminPassword = v
+	}
 	if v := os.Getenv("OPENAI_API_KEY"); v != "" {
 		cfg.OpenAIAPIKey = v
 	}
@@ -97,6 +127,16 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.OpenAIModel == "" {
 		cfg.OpenAIModel = "gpt-4o"
+	}
+	if cfg.AdminSessionTTL <= 0 {
+		cfg.AdminSessionTTL = 24
+	}
+	// Apply CORS defaults if not set by file or env.
+	if len(cfg.CORS.AllowedMethods) == 0 {
+		cfg.CORS.AllowedMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	}
+	if len(cfg.CORS.AllowedHeaders) == 0 {
+		cfg.CORS.AllowedHeaders = []string{"Content-Type", "Authorization"}
 	}
 
 	// Resolve default TLS paths relative to data_dir.
@@ -135,6 +175,24 @@ log_level = "info"
 
 # Maximum bytes read from an upstream API response (default 1 MiB).
 max_response_bytes = 1048576
+
+# ── Admin authentication ───────────────────────────────────────────────────────
+# Set a password to protect the admin UI and API with form-based authentication.
+# Can also be set via the ADMIN_PASSWORD environment variable.
+# When empty, the admin interface is accessible without authentication (dev mode only).
+# admin_password = "change-me-in-production"
+
+# Admin session cookie lifetime in hours (default 24).
+admin_session_ttl_hours = 24
+
+# ── CORS (Cross-Origin Resource Sharing) ──────────────────────────────────────
+# allowed_origins: list of origins permitted to make cross-origin requests.
+# Leave empty (default) for same-origin only. Use ["*"] to allow all origins.
+# Example: allowed_origins = ["https://app.example.com", "https://admin.example.com"]
+[cors]
+allowed_origins = []
+# allowed_methods defaults to: GET, POST, PUT, PATCH, DELETE, OPTIONS
+# allowed_headers defaults to: Content-Type, Authorization
 
 # ── OpenAI settings (built-in chat/test client) ───────────────────────────
 # Set the API key here OR via the OPENAI_API_KEY environment variable.

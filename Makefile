@@ -8,6 +8,10 @@ DATA_DIR     ?= ./data
 LISTEN_ADDR  ?= :8080
 LOG_LEVEL    ?= debug
 GATEWAY_SECRET ?= dev-secret-change-me
+COVERAGE_THRESHOLD := 60
+
+# Go packages to test (excludes generated ui/node_modules vendor code)
+GO_TEST_PKGS := $(shell $(GO) list ./... 2>/dev/null | grep -v 'ui/node_modules')
 
 # Detect OS for open command
 UNAME := $(shell uname)
@@ -17,7 +21,7 @@ else
   OPEN := xdg-open
 endif
 
-.PHONY: all build build-ui build-go run dev clean test lint tidy docker docker-up docker-down help
+.PHONY: all build build-ui build-go run dev clean test coverage lint tidy docker docker-up docker-down help
 
 ## ─── Default ────────────────────────────────────────────────────────────────
 
@@ -82,9 +86,18 @@ tidy:
 lint:
 	$(GO) vet ./...
 
-# Run tests
+# Run tests with coverage enforcement (≥ COVERAGE_THRESHOLD %)
 test:
-	$(GO) test ./... -v
+	$(GO) test $(GO_TEST_PKGS) -coverprofile=coverage.out -covermode=atomic
+	@COVERAGE=$$($(GO) tool cover -func=coverage.out | grep "^total:" | awk '{print $$3}' | sed 's/%//'); \
+	echo "Total coverage: $${COVERAGE}%  (threshold: $(COVERAGE_THRESHOLD)%)"; \
+	awk "BEGIN { exit ($${COVERAGE} < $(COVERAGE_THRESHOLD)) }" \
+	  || (echo "FAIL: coverage $${COVERAGE}% is below $(COVERAGE_THRESHOLD)%" && exit 1)
+
+# Generate HTML coverage report and open it
+coverage: test
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	$(OPEN) coverage.html 2>/dev/null || true
 
 ## ─── UI tasks ───────────────────────────────────────────────────────────────
 
@@ -138,7 +151,8 @@ help:
 	@echo ""
 	@echo "  make tidy         Tidy Go modules"
 	@echo "  make lint         Run go vet"
-	@echo "  make test         Run Go tests"
+	@echo "  make test         Run Go tests with coverage gate (≥ 60%)"
+	@echo "  make coverage     Run tests and open HTML coverage report"
 	@echo ""
 	@echo "  make docker       Build Docker image"
 	@echo "  make docker-up    Start via docker-compose"

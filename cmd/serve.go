@@ -127,11 +127,11 @@ Options:
 			os.Exit(1)
 		}
 		rp := httputil.NewSingleHostReverseProxy(target)
-		mux.HandleFunc("GET /_ui/", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("GET /_ui/", admin.UIAuthMiddleware(cfg, func(w http.ResponseWriter, r *http.Request) {
 			rp.ServeHTTP(w, r)
-		})
+		}))
 	} else if opts.UIHandler != nil {
-		mux.Handle("GET /_ui/", opts.UIHandler())
+		mux.Handle("GET /_ui/", admin.UIAuthMiddleware(cfg, opts.UIHandler().ServeHTTP))
 	}
 
 	server := &http.Server{
