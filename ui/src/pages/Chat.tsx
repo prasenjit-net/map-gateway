@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import OpenAI from 'openai'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { createMCPClient, type MCPClient, type Transport } from '../lib/mcp-client'
-import { Send, Settings, ChevronDown, ChevronRight, Plus, Loader2, KeyRound, Trash2 } from 'lucide-react'
+import { createMCPClient, type MCPClient, type Transport, type AuthConfig } from '../lib/mcp-client'
+import { Send, Settings, ChevronDown, ChevronRight, Plus, Loader2, KeyRound, Trash2, ShieldCheck } from 'lucide-react'
 import { cn } from '../lib/utils'
 import {
   type ChatMessage,
@@ -133,11 +133,20 @@ function formatSessionDate(ts: number): string {
 
 const MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo']
 
+function loadAuthConfig(): AuthConfig {
+  try {
+    const raw = localStorage.getItem('chat_auth_config')
+    if (raw) return JSON.parse(raw) as AuthConfig
+  } catch { /* ignore */ }
+  return { type: 'none' }
+}
+
 export default function Chat() {
   const [serverConfig, setServerConfig] = useState<ServerChatConfig | null>(null)
   const [model, setModel] = useState(() => localStorage.getItem('chat_model') ?? 'gpt-4o')
   const [transport, setTransport] = useState<Transport>(() => (localStorage.getItem('chat_transport') as Transport) ?? 'http')
   const [systemPrompt, setSystemPrompt] = useState(() => localStorage.getItem('chat_system_prompt') ?? 'You are a helpful assistant with access to tools.')
+  const [authConfig, setAuthConfig] = useState<AuthConfig>(loadAuthConfig)
   const [settingsOpen, setSettingsOpen] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -188,19 +197,20 @@ export default function Chat() {
     localStorage.setItem('chat_model', model)
     localStorage.setItem('chat_transport', transport)
     localStorage.setItem('chat_system_prompt', systemPrompt)
+    localStorage.setItem('chat_auth_config', JSON.stringify(authConfig))
   }
 
   const getMCPClient = useCallback(async () => {
     if (!mcpClientRef.current) {
-      mcpClientRef.current = await createMCPClient(transport)
+      mcpClientRef.current = await createMCPClient(transport, authConfig)
     }
     return mcpClientRef.current
-  }, [transport])
+  }, [transport, authConfig])
 
   useEffect(() => {
     mcpClientRef.current?.disconnect()
     mcpClientRef.current = null
-  }, [transport])
+  }, [transport, authConfig])
 
   const saveCurrentSession = useCallback((msgs: ChatMessage[], sidOverride?: string) => {
     const sid = sidOverride ?? activeSessionIdRef.current
@@ -300,7 +310,27 @@ export default function Chat() {
 
     try {
       const client = await getMCPClient()
-      const tools = await client.listTools()
+      const [tools, resources] = await Promise.all([client.listTools(), client.listResources()])
+
+      // Load resource contents — text goes into system prompt, images into user message
+      const resourceContextParts: string[] = []
+      const imageContents: OpenAI.ChatCompletionContentPartImage[] = []
+
+      for (const r of resources) {
+        try {
+          const contents = await client.readResource(r.uri)
+          for (const c of contents) {
+            if (c.text) {
+              resourceContextParts.push(`## Resource: ${r.name}${r.description ? ` — ${r.description}` : ''}\nURI: ${r.uri}\n\n${c.text}`)
+            } else if (c.blob && c.mimeType?.startsWith('image/')) {
+              imageContents.push({
+                type: 'image_url',
+                image_url: { url: `data:${c.mimeType};base64,${c.blob}`, detail: 'auto' },
+              })
+            }
+          }
+        } catch { /* skip unreadable resources */ }
+      }
 
       // The API key is managed server-side. We point the SDK at our proxy
       // endpoint (/_api/chat) which injects the real key before forwarding.
@@ -310,13 +340,29 @@ export default function Chat() {
         dangerouslyAllowBrowser: true,
       })
 
+      const systemContent = resourceContextParts.length > 0
+        ? `${systemPrompt}\n\n---\nThe following resources are available as context:\n\n${resourceContextParts.join('\n\n---\n\n')}`
+        : systemPrompt
+
+      // If images are present, send the user message as multipart content
+      const userMessageContent: OpenAI.ChatCompletionMessageParam =
+        imageContents.length > 0
+          ? {
+              role: 'user',
+              content: [
+                { type: 'text', text: userText },
+                ...imageContents,
+              ],
+            }
+          : { role: 'user', content: userText }
+
       const history: OpenAI.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemContent },
         ...messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         })),
-        { role: 'user', content: userText },
+        userMessageContent,
       ]
 
       const openaiTools: OpenAI.ChatCompletionTool[] = tools.map(t => ({
@@ -568,6 +614,70 @@ export default function Chat() {
               <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
                 rows={4}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-blue-500" />
+            </div>
+            {/* Auth configuration */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 mb-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-gray-400" />
+                <label className="text-xs text-gray-400">Tool Auth (forwarded to APIs)</label>
+              </div>
+              <select
+                value={authConfig.type}
+                onChange={e => setAuthConfig({ type: e.target.value as AuthConfig['type'] })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                <option value="none">None</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth</option>
+                <option value="api-key">API Key Header</option>
+              </select>
+              {authConfig.type === 'bearer' && (
+                <input
+                  type="password"
+                  placeholder="Bearer token"
+                  value={authConfig.bearerToken ?? ''}
+                  onChange={e => setAuthConfig(a => ({ ...a, bearerToken: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
+                />
+              )}
+              {authConfig.type === 'basic' && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={authConfig.username ?? ''}
+                    onChange={e => setAuthConfig(a => ({ ...a, username: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={authConfig.password ?? ''}
+                    onChange={e => setAuthConfig(a => ({ ...a, password: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </>
+              )}
+              {authConfig.type === 'api-key' && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Header name (e.g. X-Api-Key)"
+                    value={authConfig.headerName ?? ''}
+                    onChange={e => setAuthConfig(a => ({ ...a, headerName: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Header value"
+                    value={authConfig.headerValue ?? ''}
+                    onChange={e => setAuthConfig(a => ({ ...a, headerValue: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                </>
+              )}
+              {authConfig.type !== 'none' && (
+                <p className="text-xs text-gray-500">Enable "Passthrough Auth" on each spec to forward to downstream APIs</p>
+              )}
             </div>
             <button onClick={saveSettings}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-medium transition-colors">

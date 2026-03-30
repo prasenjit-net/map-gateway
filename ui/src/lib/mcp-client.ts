@@ -1,21 +1,67 @@
 export type Transport = 'sse' | 'http'
 
+export type AuthType = 'none' | 'bearer' | 'basic' | 'api-key'
+
+export interface AuthConfig {
+  type: AuthType
+  // bearer
+  bearerToken?: string
+  // basic
+  username?: string
+  password?: string
+  // api-key
+  headerName?: string
+  headerValue?: string
+}
+
+export function buildAuthHeaders(auth?: AuthConfig): Record<string, string> {
+  if (!auth || auth.type === 'none') return {}
+  switch (auth.type) {
+    case 'bearer':
+      return auth.bearerToken ? { Authorization: `Bearer ${auth.bearerToken}` } : {}
+    case 'basic': {
+      const creds = btoa(`${auth.username ?? ''}:${auth.password ?? ''}`)
+      return { Authorization: `Basic ${creds}` }
+    }
+    case 'api-key':
+      return auth.headerName && auth.headerValue ? { [auth.headerName]: auth.headerValue } : {}
+    default:
+      return {}
+  }
+}
+
 export interface MCPTool {
   name: string
   description: string
   inputSchema: Record<string, unknown>
 }
 
+export interface MCPResource {
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+}
+
+export interface MCPResourceContent {
+  uri: string
+  mimeType?: string
+  text?: string
+  blob?: string
+}
+
 export interface MCPClient {
   listTools(): Promise<MCPTool[]>
   callTool(name: string, args: Record<string, unknown>): Promise<string>
+  listResources(): Promise<MCPResource[]>
+  readResource(uri: string): Promise<MCPResourceContent[]>
   disconnect(): void
 }
 
-async function postMCP(url: string, body: unknown): Promise<unknown> {
+async function postMCP(url: string, body: unknown, extraHeaders?: Record<string, string>): Promise<unknown> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`MCP error: ${res.statusText}`)
@@ -26,11 +72,13 @@ let msgIdCounter = 1
 
 function nextId() { return msgIdCounter++ }
 
-export async function createMCPClient(transport: Transport): Promise<MCPClient> {
+export async function createMCPClient(transport: Transport, auth?: AuthConfig): Promise<MCPClient> {
+  const authHeaders = buildAuthHeaders(auth)
+
   if (transport === 'http') {
     return {
       listTools: async () => {
-        const res = await postMCP('/mcp/http', { jsonrpc: '2.0', id: nextId(), method: 'tools/list', params: {} }) as { result?: { tools?: { name: string; description?: string; inputSchema?: Record<string, unknown> }[] } }
+        const res = await postMCP('/mcp/http', { jsonrpc: '2.0', id: nextId(), method: 'tools/list', params: {} }, authHeaders) as { result?: { tools?: { name: string; description?: string; inputSchema?: Record<string, unknown> }[] } }
         return (res.result?.tools ?? []).map((t) => ({
           name: t.name,
           description: t.description ?? '',
@@ -38,11 +86,19 @@ export async function createMCPClient(transport: Transport): Promise<MCPClient> 
         }))
       },
       callTool: async (name, args) => {
-        const res = await postMCP('/mcp/http', { jsonrpc: '2.0', id: nextId(), method: 'tools/call', params: { name, arguments: args } }) as { result?: { content?: { type: string; text?: string }[] } }
+        const res = await postMCP('/mcp/http', { jsonrpc: '2.0', id: nextId(), method: 'tools/call', params: { name, arguments: args } }, authHeaders) as { result?: { content?: { type: string; text?: string }[] } }
         const content = res.result?.content ?? []
         if (content.length === 0) return ''
         if (content[0].type === 'text') return content[0].text ?? ''
         return JSON.stringify(content)
+      },
+      listResources: async () => {
+        const res = await postMCP('/mcp/http', { jsonrpc: '2.0', id: nextId(), method: 'resources/list', params: {} }, authHeaders) as { result?: { resources?: MCPResource[] } }
+        return res.result?.resources ?? []
+      },
+      readResource: async (uri) => {
+        const res = await postMCP('/mcp/http', { jsonrpc: '2.0', id: nextId(), method: 'resources/read', params: { uri } }, authHeaders) as { result?: { contents?: MCPResourceContent[] } }
+        return res.result?.contents ?? []
       },
       disconnect: () => {},
     }
@@ -65,7 +121,7 @@ export async function createMCPClient(transport: Transport): Promise<MCPClient> 
       const id = nextId()
       void fetch(messageUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ jsonrpc: '2.0', id, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'mcp-gateway-ui', version: '1.0' } } }),
       })
     })
@@ -105,7 +161,7 @@ export async function createMCPClient(transport: Transport): Promise<MCPClient> 
         pendingErrors.set(id, rej)
         void fetch(messageUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
         })
         setTimeout(() => {
@@ -133,6 +189,14 @@ export async function createMCPClient(transport: Transport): Promise<MCPClient> 
         if (content.length === 0) return ''
         if (content[0].type === 'text') return content[0].text ?? ''
         return JSON.stringify(content)
+      },
+      listResources: async () => {
+        const result = await sendRequest('resources/list', {}) as { resources?: MCPResource[] } | null
+        return result?.resources ?? []
+      },
+      readResource: async (uri) => {
+        const result = await sendRequest('resources/read', { uri }) as { contents?: MCPResourceContent[] } | null
+        return result?.contents ?? []
       },
       disconnect: () => es.close(),
     }

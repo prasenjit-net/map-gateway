@@ -116,7 +116,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := s.deps.Handle(session.ctx, &req, session.inbound)
+	resp := s.deps.Handle(session.ctx, &req, mergeInboundAuth(session.inbound, captureInboundAuth(r)))
 	if resp == nil {
 		w.WriteHeader(http.StatusAccepted)
 		return
@@ -147,10 +147,53 @@ func (s *SSEServer) ActiveSessionCount() int {
 	return count
 }
 
+// captureInboundAuth extracts auth and all non-standard headers from a request.
 func captureInboundAuth(r *http.Request) *auth.InboundAuth {
+	extra := map[string]string{}
+	for name, vals := range r.Header {
+		if len(vals) == 0 {
+			continue
+		}
+		n := http.CanonicalHeaderKey(name)
+		// Skip standard/hop-by-hop headers; capture everything else as passthrough candidates
+		switch n {
+		case "Authorization", "Cookie", "Content-Type", "Content-Length",
+			"Accept", "Accept-Encoding", "User-Agent", "Host",
+			"Connection", "Cache-Control", "Pragma":
+			// handled separately or not needed
+		default:
+			extra[n] = vals[0]
+		}
+	}
 	return &auth.InboundAuth{
 		Authorization: r.Header.Get("Authorization"),
 		Cookie:        r.Header.Get("Cookie"),
+		ExtraHeaders:  extra,
+	}
+}
+
+// mergeInboundAuth merges two InboundAuth structs; values from msg override session
+// only when they are non-empty, so the session fallback is preserved.
+func mergeInboundAuth(session, msg *auth.InboundAuth) *auth.InboundAuth {
+	if msg == nil {
+		return session
+	}
+	result := &auth.InboundAuth{
+		Authorization: session.Authorization,
+		Cookie:        session.Cookie,
 		ExtraHeaders:  map[string]string{},
 	}
+	for k, v := range session.ExtraHeaders {
+		result.ExtraHeaders[k] = v
+	}
+	if msg.Authorization != "" {
+		result.Authorization = msg.Authorization
+	}
+	if msg.Cookie != "" {
+		result.Cookie = msg.Cookie
+	}
+	for k, v := range msg.ExtraHeaders {
+		result.ExtraHeaders[k] = v
+	}
+	return result
 }
