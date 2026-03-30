@@ -20,6 +20,7 @@ const petStoreSpecJSON = `{"openapi":"3.0.0","info":{"title":"Pet Store","versio
 func newMux(t *testing.T) *http.ServeMux {
 	t.Helper()
 	cfg := adminCfg("", "secret") // empty password → no auth
+	cfg.DataDir = t.TempDir()     // isolate test data
 	s, err := store.NewJSONStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("store: %v", err)
