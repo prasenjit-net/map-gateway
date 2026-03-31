@@ -166,3 +166,56 @@ func TestTLSDefaultPaths(t *testing.T) {
 		t.Error("TLS.KeyFile should have a default")
 	}
 }
+
+// Regression test: openai_api_key and openai_model are root-level keys and
+// MUST appear before any [section] header in config.toml. If they're placed
+// after [cors], TOML silently parses them as cors.openai_api_key which is
+// an unknown field and gets dropped, leaving cfg.OpenAIAPIKey empty.
+func TestOpenAIKeyBeforeCORSSection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	// Correct layout: openai_* before [cors]
+	correct := `
+openai_api_key = "sk-test-correct"
+openai_model   = "gpt-4o-mini"
+
+[cors]
+allowed_origins = []
+`
+	if err := os.WriteFile(path, []byte(correct), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if cfg.OpenAIAPIKey != "sk-test-correct" {
+		t.Errorf("OpenAIAPIKey = %q, want sk-test-correct (key placed before [cors])", cfg.OpenAIAPIKey)
+	}
+	if cfg.OpenAIModel != "gpt-4o-mini" {
+		t.Errorf("OpenAIModel = %q, want gpt-4o-mini", cfg.OpenAIModel)
+	}
+}
+
+// Ensure the built-in DefaultConfigContent template is parseable and produces
+// a config with the expected openai_model (key is commented out in the template).
+func TestDefaultConfigContentParseable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "default.toml")
+	if err := os.WriteFile(path, []byte(config.DefaultConfigContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("DefaultConfigContent is not valid TOML: %v", err)
+	}
+	// Template has openai_model = "gpt-4o" before [cors].
+	if cfg.OpenAIModel != "gpt-4o" {
+		t.Errorf("DefaultConfigContent OpenAIModel = %q, want gpt-4o", cfg.OpenAIModel)
+	}
+	// Key is commented out in the template, so should be empty.
+	if cfg.OpenAIAPIKey != "" {
+		t.Errorf("DefaultConfigContent should not have a pre-set OpenAIAPIKey")
+	}
+}

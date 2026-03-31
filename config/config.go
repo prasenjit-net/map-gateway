@@ -185,6 +185,12 @@ max_response_bytes = 1048576
 # Admin session cookie lifetime in hours (default 24).
 admin_session_ttl_hours = 24
 
+# ── OpenAI settings (built-in chat/test client) ───────────────────────────────
+# Set the API key here OR via the OPENAI_API_KEY environment variable.
+# The key is never sent to the browser.
+# openai_api_key = "sk-..."
+openai_model = "gpt-4o"
+
 # ── CORS (Cross-Origin Resource Sharing) ──────────────────────────────────────
 # allowed_origins: list of origins permitted to make cross-origin requests.
 # Leave empty (default) for same-origin only. Use ["*"] to allow all origins.
@@ -193,12 +199,6 @@ admin_session_ttl_hours = 24
 allowed_origins = []
 # allowed_methods defaults to: GET, POST, PUT, PATCH, DELETE, OPTIONS
 # allowed_headers defaults to: Content-Type, Authorization
-
-# ── OpenAI settings (built-in chat/test client) ───────────────────────────
-# Set the API key here OR via the OPENAI_API_KEY environment variable.
-# The key is never sent to the browser.
-# openai_api_key = "sk-..."
-openai_model = "gpt-4o"
 
 # ── TLS (server) ──────────────────────────────────────────────────────────────
 # When enabled, the server serves both HTTP and HTTPS on the same port via cmux.
