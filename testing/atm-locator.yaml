@@ -1,0 +1,518 @@
+openapi: 3.0.3
+
+info:
+  title: ATM Locator API
+  version: 1.0.0
+  description: |
+    A simple API for finding nearby ATMs by ZIP code or city name.
+    Designed as a test fixture for the MCP Gateway — the single search
+    endpoint is richly documented so auto-generated MCP tools provide
+    clear, useful descriptions for AI agents.
+
+    ## Usage
+
+    Query by **ZIP code** or **city** (or both). Results are ordered by
+    distance ascending. Each ATM record includes the machine's address,
+    supported networks, accessibility features, and current status.
+
+    ## Data model
+
+    An **ATM** has the following fields:
+
+    | Field            | Type    | Notes                                           |
+    |------------------|---------|-------------------------------------------------|
+    | id               | string  | Unique machine identifier (e.g. "ATM-00142")    |
+    | bank_name        | string  | Owning financial institution                    |
+    | address          | object  | street, city, state, zip                        |
+    | coordinates      | object  | latitude and longitude                          |
+    | distance_miles   | number  | Distance from the queried location              |
+    | networks         | array   | Supported networks (VISA, Mastercard, etc.)     |
+    | accessibility    | object  | wheelchair, audio_guidance, braille_keypad      |
+    | services         | array   | Cash withdrawal, deposits, coin exchange, etc.  |
+    | fee_surcharge    | number  | Surcharge for non-customers (USD, 0 = free)     |
+    | is_open_24h      | boolean | Whether the machine operates around the clock   |
+    | hours            | string  | Operating hours if not 24/7                     |
+    | status           | string  | "online" or "offline" or "maintenance"          |
+    | last_updated     | string  | ISO 8601 timestamp of last status refresh       |
+
+servers:
+  - url: https://api.example-bank.com/v1
+    description: Production
+  - url: https://sandbox.example-bank.com/v1
+    description: Sandbox (test environment)
+
+paths:
+  /atms/search:
+    get:
+      operationId: searchATMs
+      summary: Search for nearby ATMs
+      description: |
+        Returns a list of ATMs near the requested location, ordered by
+        distance ascending.
+
+        At least one of `zip` or `city` must be provided. When both are
+        given, `zip` takes precedence for geocoding and `city` is used
+        only as a display hint.
+
+        ### Filtering
+
+        - `radius_miles` — restrict results to within N miles (default 5, max 50)
+        - `networks` — comma-separated list; only return ATMs that accept
+          at least one of the listed networks (e.g. `VISA,PLUS`)
+        - `fee_free_only` — when `true`, exclude ATMs with a surcharge
+        - `status` — filter by machine status (`online`, `offline`, `maintenance`)
+        - `accessible_only` — when `true`, include only wheelchair-accessible machines
+
+        ### Pagination
+
+        Use `limit` (default 20, max 100) and `offset` for paging.
+      tags:
+        - ATM Search
+      parameters:
+        - name: zip
+          in: query
+          description: |
+            5-digit US ZIP code to use as the search centre.
+            Either `zip` or `city` is required.
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{5}$'
+            example: "10001"
+        - name: city
+          in: query
+          description: |
+            City name (optionally include state abbreviation separated by a
+            comma, e.g. "Austin, TX"). Used when no ZIP is provided.
+            Either `zip` or `city` is required.
+          required: false
+          schema:
+            type: string
+            example: "Austin, TX"
+        - name: radius_miles
+          in: query
+          description: Search radius in miles. Must be between 0.1 and 50.
+          required: false
+          schema:
+            type: number
+            format: float
+            minimum: 0.1
+            maximum: 50
+            default: 5
+          example: 2.5
+        - name: networks
+          in: query
+          description: |
+            Comma-separated list of card networks to filter by.
+            Accepted values: VISA, MASTERCARD, AMEX, DISCOVER, PLUS, CIRRUS, STAR, NYCE.
+          required: false
+          schema:
+            type: string
+          example: "VISA,PLUS"
+        - name: fee_free_only
+          in: query
+          description: When true, only ATMs with zero surcharge are returned.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: accessible_only
+          in: query
+          description: When true, only wheelchair-accessible ATMs are returned.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: status
+          in: query
+          description: Filter by machine status.
+          required: false
+          schema:
+            type: string
+            enum: [online, offline, maintenance]
+          example: "online"
+        - name: limit
+          in: query
+          description: Maximum number of results to return (1–100).
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of results to skip for pagination.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A list of ATMs near the requested location.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ATMSearchResponse"
+              example:
+                total: 5
+                offset: 0
+                limit: 20
+                query:
+                  zip: "10001"
+                  radius_miles: 5
+                results:
+                  - id: "ATM-00142"
+                    bank_name: "Chase Bank"
+                    address:
+                      street: "450 W 33rd St"
+                      city: "New York"
+                      state: "NY"
+                      zip: "10001"
+                    coordinates:
+                      latitude: 40.7484
+                      longitude: -73.9967
+                    distance_miles: 0.3
+                    networks: ["VISA", "MASTERCARD", "PLUS", "CIRRUS"]
+                    accessibility:
+                      wheelchair: true
+                      audio_guidance: true
+                      braille_keypad: true
+                    services: ["cash_withdrawal", "balance_inquiry", "transfer"]
+                    fee_surcharge: 0.00
+                    is_open_24h: true
+                    hours: null
+                    status: "online"
+                    last_updated: "2026-03-31T18:00:00Z"
+
+                  - id: "ATM-00287"
+                    bank_name: "Bank of America"
+                    address:
+                      street: "375 Park Ave"
+                      city: "New York"
+                      state: "NY"
+                      zip: "10152"
+                    coordinates:
+                      latitude: 40.7580
+                      longitude: -73.9712
+                    distance_miles: 1.1
+                    networks: ["VISA", "MASTERCARD", "AMEX", "DISCOVER", "STAR"]
+                    accessibility:
+                      wheelchair: true
+                      audio_guidance: false
+                      braille_keypad: true
+                    services: ["cash_withdrawal", "deposit", "balance_inquiry"]
+                    fee_surcharge: 0.00
+                    is_open_24h: false
+                    hours: "Mon-Fri 07:00-21:00, Sat 09:00-17:00"
+                    status: "online"
+                    last_updated: "2026-03-31T17:45:00Z"
+
+                  - id: "ATM-00391"
+                    bank_name: "Citibank"
+                    address:
+                      street: "120 Broadway"
+                      city: "New York"
+                      state: "NY"
+                      zip: "10271"
+                    coordinates:
+                      latitude: 40.7074
+                      longitude: -74.0113
+                    distance_miles: 1.8
+                    networks: ["VISA", "MASTERCARD", "PLUS", "NYCE"]
+                    accessibility:
+                      wheelchair: true
+                      audio_guidance: true
+                      braille_keypad: false
+                    services: ["cash_withdrawal", "balance_inquiry", "bill_payment"]
+                    fee_surcharge: 2.50
+                    is_open_24h: true
+                    hours: null
+                    status: "online"
+                    last_updated: "2026-03-31T19:10:00Z"
+
+                  - id: "ATM-00455"
+                    bank_name: "Wells Fargo"
+                    address:
+                      street: "30 Hudson Yards"
+                      city: "New York"
+                      state: "NY"
+                      zip: "10001"
+                    coordinates:
+                      latitude: 40.7537
+                      longitude: -74.0022
+                    distance_miles: 2.4
+                    networks: ["VISA", "MASTERCARD", "PLUS", "CIRRUS", "STAR"]
+                    accessibility:
+                      wheelchair: false
+                      audio_guidance: false
+                      braille_keypad: false
+                    services: ["cash_withdrawal", "deposit", "balance_inquiry", "coin_exchange"]
+                    fee_surcharge: 3.00
+                    is_open_24h: false
+                    hours: "Mon-Sun 08:00-20:00"
+                    status: "maintenance"
+                    last_updated: "2026-03-31T20:30:00Z"
+
+                  - id: "ATM-00512"
+                    bank_name: "TD Bank"
+                    address:
+                      street: "841 Broadway"
+                      city: "New York"
+                      state: "NY"
+                      zip: "10003"
+                    coordinates:
+                      latitude: 40.7338
+                      longitude: -73.9913
+                    distance_miles: 3.2
+                    networks: ["VISA", "MASTERCARD", "DISCOVER", "NYCE", "STAR"]
+                    accessibility:
+                      wheelchair: true
+                      audio_guidance: true
+                      braille_keypad: true
+                    services: ["cash_withdrawal", "deposit", "balance_inquiry", "transfer", "bill_payment"]
+                    fee_surcharge: 0.00
+                    is_open_24h: true
+                    hours: null
+                    status: "online"
+                    last_updated: "2026-03-31T21:00:00Z"
+
+        "400":
+          description: |
+            Bad request. At least one of `zip` or `city` must be provided,
+            and any supplied parameters must be valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "bad_request"
+                message: "At least one of 'zip' or 'city' is required."
+                details:
+                  - field: "zip"
+                    issue: "missing"
+                  - field: "city"
+                    issue: "missing"
+
+        "422":
+          description: |
+            Unprocessable location — the provided ZIP code or city could not
+            be geocoded to a valid coordinate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "unprocessable_location"
+                message: "ZIP code '99999' could not be resolved to a geographic location."
+
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "rate_limit_exceeded"
+                message: "Too many requests. Retry after 60 seconds."
+
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "internal_server_error"
+                message: "An unexpected error occurred. Please try again later."
+
+components:
+  schemas:
+
+    ATMSearchResponse:
+      type: object
+      required: [total, offset, limit, query, results]
+      properties:
+        total:
+          type: integer
+          description: Total number of ATMs matching the query (before pagination).
+          example: 42
+        offset:
+          type: integer
+          description: Number of results skipped.
+          example: 0
+        limit:
+          type: integer
+          description: Maximum results per page.
+          example: 20
+        query:
+          type: object
+          description: Echo of the resolved query parameters.
+          properties:
+            zip:
+              type: string
+              nullable: true
+              example: "10001"
+            city:
+              type: string
+              nullable: true
+              example: null
+            radius_miles:
+              type: number
+              example: 5
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ATM"
+
+    ATM:
+      type: object
+      required: [id, bank_name, address, coordinates, distance_miles, networks, accessibility, services, fee_surcharge, is_open_24h, status, last_updated]
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this ATM machine.
+          example: "ATM-00142"
+        bank_name:
+          type: string
+          description: Name of the bank or financial institution that owns the ATM.
+          example: "Chase Bank"
+        address:
+          $ref: "#/components/schemas/Address"
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+        distance_miles:
+          type: number
+          format: float
+          description: Distance in miles from the queried location.
+          example: 0.3
+        networks:
+          type: array
+          description: Card networks accepted by this ATM.
+          items:
+            type: string
+            enum: [VISA, MASTERCARD, AMEX, DISCOVER, PLUS, CIRRUS, STAR, NYCE]
+          example: ["VISA", "MASTERCARD", "PLUS"]
+        accessibility:
+          $ref: "#/components/schemas/Accessibility"
+        services:
+          type: array
+          description: Services available at this ATM.
+          items:
+            type: string
+            enum:
+              - cash_withdrawal
+              - deposit
+              - balance_inquiry
+              - transfer
+              - bill_payment
+              - coin_exchange
+              - check_cashing
+          example: ["cash_withdrawal", "balance_inquiry"]
+        fee_surcharge:
+          type: number
+          format: float
+          description: |
+            Surcharge applied to non-customers in USD.
+            0.00 means no fee.
+          example: 2.50
+        is_open_24h:
+          type: boolean
+          description: Whether the ATM is accessible 24 hours a day.
+          example: true
+        hours:
+          type: string
+          nullable: true
+          description: |
+            Human-readable operating hours when `is_open_24h` is false.
+            Null when open 24/7.
+          example: "Mon-Fri 07:00-21:00, Sat 09:00-17:00"
+        status:
+          type: string
+          enum: [online, offline, maintenance]
+          description: Current operational status of the ATM.
+          example: "online"
+        last_updated:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the last status update.
+          example: "2026-03-31T18:00:00Z"
+
+    Address:
+      type: object
+      required: [street, city, state, zip]
+      properties:
+        street:
+          type: string
+          example: "450 W 33rd St"
+        city:
+          type: string
+          example: "New York"
+        state:
+          type: string
+          description: Two-letter US state abbreviation.
+          example: "NY"
+        zip:
+          type: string
+          pattern: '^\d{5}$'
+          example: "10001"
+
+    Coordinates:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          description: WGS-84 latitude.
+          example: 40.7484
+        longitude:
+          type: number
+          format: double
+          description: WGS-84 longitude.
+          example: -73.9967
+
+    Accessibility:
+      type: object
+      required: [wheelchair, audio_guidance, braille_keypad]
+      properties:
+        wheelchair:
+          type: boolean
+          description: ATM is at a wheelchair-accessible height and location.
+          example: true
+        audio_guidance:
+          type: boolean
+          description: ATM offers audio-guided operation (headphone jack).
+          example: true
+        braille_keypad:
+          type: boolean
+          description: ATM keypad has Braille labels.
+          example: true
+
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code.
+          example: "bad_request"
+        message:
+          type: string
+          description: Human-readable error description.
+          example: "At least one of 'zip' or 'city' is required."
+        details:
+          type: array
+          description: Optional per-field validation errors.
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+
+tags:
+  - name: ATM Search
+    description: Locate ATMs by ZIP code or city name.
