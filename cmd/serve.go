@@ -199,7 +199,7 @@ Options:
 			}
 		}()
 		// Store WG on the server so shutdown can wait for goroutines.
-		_ = cmuxWG // goroutines drain when cmuxInst.Close() is called below
+
 
 		logger.Info("TLS enabled on addr (HTTP and HTTPS)", "addr", cfg.ListenAddr)
 	} else {
