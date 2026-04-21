@@ -80,9 +80,10 @@ func (h *HandlerDeps) handleToolsList(req *Request) *Response {
 	mcpTools := make([]Tool, 0, len(tools))
 	for _, t := range tools {
 		mcpTools = append(mcpTools, Tool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
+			Name:         t.Name,
+			Description:  t.Description,
+			InputSchema:  t.InputSchema,
+			OutputSchema: t.OutputSchema,
 		})
 	}
 	return &Response{JSONRPC: "2.0", ID: req.ID, Result: ListToolsResult{Tools: mcpTools}}

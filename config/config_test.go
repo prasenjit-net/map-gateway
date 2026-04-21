@@ -10,8 +10,8 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
-	if cfg.ListenAddr != ":8080" {
-		t.Errorf("ListenAddr = %q, want :8080", cfg.ListenAddr)
+	if cfg.ListenAddr != ":9876" {
+		t.Errorf("ListenAddr = %q, want :9876", cfg.ListenAddr)
 	}
 	if cfg.DataDir != "./data" {
 		t.Errorf("DataDir = %q, want ./data", cfg.DataDir)
@@ -45,8 +45,8 @@ func TestLoadNonExistentFile(t *testing.T) {
 		t.Fatalf("Load returned error for missing file: %v", err)
 	}
 	// Should return defaults.
-	if cfg.ListenAddr != ":8080" {
-		t.Errorf("ListenAddr = %q, want :8080", cfg.ListenAddr)
+	if cfg.ListenAddr != ":9876" {
+		t.Errorf("ListenAddr = %q, want :9876", cfg.ListenAddr)
 	}
 }
 
@@ -127,7 +127,7 @@ func TestCORSDefaultsAppliedAfterLoad(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	// Config without [cors] section: methods/headers should get defaults.
-	if err := os.WriteFile(path, []byte(`listen_addr = ":8080"`), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(`listen_addr = ":9876"`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := config.Load(path)

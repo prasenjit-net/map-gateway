@@ -2,9 +2,9 @@ services:
   gateway:
     build: .
     ports:
-      - "8080:8080"
+      - "9876:9876"
     environment:
-      - LISTEN_ADDR=:8080
+      - LISTEN_ADDR=:9876
       - DATA_DIR=/data
       - LOG_LEVEL=info
       - GATEWAY_SECRET=change-me-in-production

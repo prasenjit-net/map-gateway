@@ -30,15 +30,15 @@ cd ui && npm ci && npm run build && cd ..
 
 # Run
 GATEWAY_SECRET=my-secret go run .
-# Server starts at http://localhost:8080
-# Admin UI: http://localhost:8080/_ui/
+# Server starts at http://localhost:9876
+# Admin UI: http://localhost:9876/_ui/
 ```
 
 ### Docker
 
 ```bash
 docker compose up
-# Admin UI: http://localhost:8080/_ui/
+# Admin UI: http://localhost:9876/_ui/
 # Mock upstream at http://localhost:8081
 ```
 
@@ -46,7 +46,7 @@ docker compose up
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LISTEN_ADDR` | `:8080` | HTTP listen address |
+| `LISTEN_ADDR` | `:9876` | HTTP listen address |
 | `DATA_DIR` | `./data` | Directory for JSON state files |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
 | `MAX_RESPONSE_BYTES` | `1048576` | Max upstream response size (bytes) |
@@ -59,7 +59,7 @@ docker compose up
 
 ### 1. Upload a Spec
 
-Open `http://localhost:8080/_ui/specs`, click **Upload New Spec**, and provide:
+Open `http://localhost:9876/_ui/specs`, click **Upload New Spec**, and provide:
 - **Name** — display name for this API
 - **Upstream Base URL** — where the real REST API is running
 - **Spec file** — OpenAPI 3 YAML or JSON
@@ -70,12 +70,12 @@ Open `http://localhost:8080/_ui/specs`, click **Upload New Spec**, and provide:
 
 **SSE transport** (for stateful agents / Claude Desktop):
 ```
-GET http://localhost:8080/mcp/sse
+GET http://localhost:9876/mcp/sse
 ```
 
 **HTTP transport** (stateless JSON-RPC):
 ```
-POST http://localhost:8080/mcp/http
+POST http://localhost:9876/mcp/http
 Content-Type: application/json
 
 {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
@@ -86,7 +86,7 @@ Content-Type: application/json
 {
   "mcpServers": {
     "my-api": {
-      "url": "http://localhost:8080/mcp/sse",
+      "url": "http://localhost:9876/mcp/sse",
       "transport": "sse"
     }
   }
@@ -95,7 +95,7 @@ Content-Type: application/json
 
 ### 3. Test in the Browser
 
-Go to `http://localhost:8080/_ui/chat`, enter your OpenAI API key, and start chatting. The assistant will automatically use your registered MCP tools.
+Go to `http://localhost:9876/_ui/chat`, enter your OpenAI API key, and start chatting. The assistant will automatically use your registered MCP tools.
 
 ---
 

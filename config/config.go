@@ -81,7 +81,7 @@ type Config struct {
 // DefaultConfig returns a Config populated with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		ListenAddr:                ":8080",
+		ListenAddr:                ":9876",
 		DataDir:                   "./data",
 		LogLevel:                  "info",
 		MaxResponseBytes:          1048576,
@@ -216,7 +216,7 @@ const DefaultConfigContent = `# MCP Gateway — configuration file
 # Reference: https://github.com/prasenjit-net/mcp-gateway
 
 # Address and port the server listens on.
-listen_addr = ":8080"
+listen_addr = ":9876"
 
 # Directory where specs, auth credentials, and stats are persisted.
 data_dir = "./data"

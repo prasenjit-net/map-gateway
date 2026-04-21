@@ -62,5 +62,5 @@ Options:
 	fmt.Println("MCP Gateway initialised. Next steps:")
 	fmt.Printf("  1. Edit %s to set your listen address, OpenAI key, etc.\n", *configFile)
 	fmt.Println("  2. Run:  mcp-gateway serve")
-	fmt.Printf("         or: mcp-gateway serve --config %s --port 8080\n", *configFile)
+	fmt.Printf("         or: mcp-gateway serve --config %s --port 9876\n", *configFile)
 }

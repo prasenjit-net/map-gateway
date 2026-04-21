@@ -61,6 +61,106 @@ const petStoreSpec = `{
   }
 }`
 
+const schemaMetadataSpec = `{
+  "openapi": "3.0.0",
+  "info": {"title": "Schema Metadata", "version": "1.0.0"},
+  "paths": {
+    "/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "List projects",
+        "description": "Returns the available projects.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of projects to return",
+            "example": 20,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string", "description": "Project identifier"}
+                        },
+                        "required": ["id"]
+                      }
+                    },
+                    "total": {"type": "integer", "description": "Total count"}
+                  },
+                  "required": ["data", "total"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Project creation payload",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Unique display name",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "colour": {
+                    "type": "string",
+                    "description": "Project colour",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "name": {"type": "string"}
+                  },
+                  "required": ["id", "name"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
 func TestParseValidSpec(t *testing.T) {
 	parsed, err := spec.Parse([]byte(petStoreSpec))
 	if err != nil {
@@ -198,5 +298,79 @@ func TestExtractToolsOperationRecords(t *testing.T) {
 		if op.Method == "" {
 			t.Error("op.Method should not be empty")
 		}
+	}
+}
+
+func TestExtractToolsPreservesSchemaMetadata(t *testing.T) {
+	parsed, err := spec.Parse([]byte(schemaMetadataSpec))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	tools, _, err := spec.ExtractTools("spec-2", "Schema Metadata", "https://api.example.com", parsed, false, false, nil, false)
+	if err != nil {
+		t.Fatalf("ExtractTools: %v", err)
+	}
+
+	toolMap := make(map[string]*spec.ToolDefinition, len(tools))
+	for _, tool := range tools {
+		toolMap[tool.OperationID] = tool
+	}
+
+	listProjects := toolMap["listProjects"]
+	if listProjects == nil {
+		t.Fatal("listProjects tool not found")
+	}
+
+	limitProp := listProjects.InputSchema["properties"].(map[string]interface{})["limit"].(map[string]interface{})
+	if got := limitProp["description"]; got != "Maximum number of projects to return" {
+		t.Fatalf("limit description = %v, want parameter description", got)
+	}
+	if got := limitProp["minimum"]; got != float64(1) {
+		t.Fatalf("limit minimum = %v, want 1", got)
+	}
+	if got := limitProp["maximum"]; got != float64(100) {
+		t.Fatalf("limit maximum = %v, want 100", got)
+	}
+	if got := limitProp["default"]; got != float64(20) {
+		t.Fatalf("limit default = %v, want 20", got)
+	}
+	if got := limitProp["example"]; got != float64(20) {
+		t.Fatalf("limit example = %v, want 20", got)
+	}
+
+	if listProjects.OutputSchema == nil {
+		t.Fatal("listProjects.OutputSchema should not be nil")
+	}
+	if got := listProjects.OutputSchema["description"]; got != "Paginated list of projects" {
+		t.Fatalf("output description = %v, want response description", got)
+	}
+
+	outputProps := listProjects.OutputSchema["properties"].(map[string]interface{})
+	totalProp := outputProps["total"].(map[string]interface{})
+	if got := totalProp["description"]; got != "Total count" {
+		t.Fatalf("output total description = %v, want Total count", got)
+	}
+
+	createProject := toolMap["createProject"]
+	if createProject == nil {
+		t.Fatal("createProject tool not found")
+	}
+	if got := createProject.InputSchema["description"]; got != "Project creation payload" {
+		t.Fatalf("input schema description = %v, want request body description", got)
+	}
+
+	createProps := createProject.InputSchema["properties"].(map[string]interface{})
+	nameProp := createProps["name"].(map[string]interface{})
+	if got := nameProp["minLength"]; got != uint64(1) {
+		t.Fatalf("name minLength = %v, want 1", got)
+	}
+	if got := nameProp["maxLength"]; got != uint64(100) {
+		t.Fatalf("name maxLength = %v, want 100", got)
+	}
+
+	colourProp := createProps["colour"].(map[string]interface{})
+	if got := colourProp["pattern"]; got != "^#[0-9a-fA-F]{6}$" {
+		t.Fatalf("colour pattern = %v, want hex pattern", got)
 	}
 }

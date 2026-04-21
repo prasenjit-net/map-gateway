@@ -14,6 +14,7 @@ import (
 	"github.com/prasenjit-net/mcp-gateway/config"
 	"github.com/prasenjit-net/mcp-gateway/mcp"
 	"github.com/prasenjit-net/mcp-gateway/registry"
+	"github.com/prasenjit-net/mcp-gateway/spec"
 	"github.com/prasenjit-net/mcp-gateway/store"
 )
 
@@ -100,6 +101,62 @@ func TestHandleToolsListEmpty(t *testing.T) {
 	resp := h.Handle(context.Background(), makeReq("tools/list", 3, nil), &auth.InboundAuth{})
 	if resp == nil || resp.Error != nil {
 		t.Fatalf("unexpected error or nil: %v", resp)
+	}
+}
+
+func TestHandleToolsListIncludesSchemas(t *testing.T) {
+	h := buildHandlerDeps(t)
+	h.Registry.RebuildAll([]*spec.ToolDefinition{{
+		Name:        "listProjects",
+		Description: "List projects",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"limit": map[string]interface{}{
+					"type":        "integer",
+					"description": "Maximum number of projects to return",
+					"minimum":     float64(1),
+				},
+			},
+		},
+		OutputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"total": map[string]interface{}{
+					"type":        "integer",
+					"description": "Total count",
+				},
+			},
+		},
+	}})
+
+	resp := h.Handle(context.Background(), makeReq("tools/list", 30, nil), &auth.InboundAuth{})
+	if resp == nil || resp.Error != nil {
+		t.Fatalf("unexpected error or nil: %v", resp)
+	}
+
+	result, ok := resp.Result.(mcp.ListToolsResult)
+	if !ok {
+		t.Fatalf("expected ListToolsResult, got %T", resp.Result)
+	}
+	if len(result.Tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(result.Tools))
+	}
+
+	tool := result.Tools[0]
+	inputProps := tool.InputSchema["properties"].(map[string]interface{})
+	limitProp := inputProps["limit"].(map[string]interface{})
+	if got := limitProp["description"]; got != "Maximum number of projects to return" {
+		t.Fatalf("input description = %v, want preserved parameter description", got)
+	}
+
+	if tool.OutputSchema == nil {
+		t.Fatal("tool.OutputSchema should not be nil")
+	}
+	outputProps := tool.OutputSchema["properties"].(map[string]interface{})
+	totalProp := outputProps["total"].(map[string]interface{})
+	if got := totalProp["description"]; got != "Total count" {
+		t.Fatalf("output description = %v, want Total count", got)
 	}
 }
 
@@ -297,82 +354,82 @@ func TestHTTPTransportNotification(t *testing.T) {
 }
 
 func TestHandleResourcesReadInvalidFilePath(t *testing.T) {
-h := buildHandlerDeps(t)
-h.Registry.RebuildResources([]*store.ResourceRecord{{
-ID:       "traversal-res",
-Name:     "traversal",
-Type:     "file",
-FilePath: "../../../etc/passwd",
-MimeType: "text/plain",
-}})
-req := makeReq("resources/read", 1, map[string]interface{}{
-"uri": "gateway://resources/traversal-res",
-})
-resp := h.Handle(context.Background(), req, nil)
-if resp.Error == nil {
-t.Error("expected error for traversal path, got nil error")
-}
+	h := buildHandlerDeps(t)
+	h.Registry.RebuildResources([]*store.ResourceRecord{{
+		ID:       "traversal-res",
+		Name:     "traversal",
+		Type:     "file",
+		FilePath: "../../../etc/passwd",
+		MimeType: "text/plain",
+	}})
+	req := makeReq("resources/read", 1, map[string]interface{}{
+		"uri": "gateway://resources/traversal-res",
+	})
+	resp := h.Handle(context.Background(), req, nil)
+	if resp.Error == nil {
+		t.Error("expected error for traversal path, got nil error")
+	}
 }
 
 func TestHTTPTransportBodySizeLimit(t *testing.T) {
-h := buildHandlerDeps(t)
-h.Config.MaxRequestBytes = 64
-transport := mcp.NewHTTPTransport(h)
+	h := buildHandlerDeps(t)
+	h.Config.MaxRequestBytes = 64
+	transport := mcp.NewHTTPTransport(h)
 
-bigBody := strings.Repeat("x", 200)
-req := httptest.NewRequest("POST", "/mcp", strings.NewReader(bigBody))
-w := httptest.NewRecorder()
-transport.Handle(w, req)
-if w.Code == http.StatusOK {
-t.Error("expected non-200 for oversized body")
-}
+	bigBody := strings.Repeat("x", 200)
+	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(bigBody))
+	w := httptest.NewRecorder()
+	transport.Handle(w, req)
+	if w.Code == http.StatusOK {
+		t.Error("expected non-200 for oversized body")
+	}
 }
 
 func TestHandleResourcesReadFile(t *testing.T) {
-h := buildHandlerDeps(t)
-// Create an actual file in the data dir
-content := "hello resource"
-filePath := "test-resource.txt"
-fullPath := h.Config.DataDir + "/" + filePath
-if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
-t.Fatalf("write file: %v", err)
-}
-h.Registry.RebuildResources([]*store.ResourceRecord{{
-ID:       "file-res",
-Name:     "File Resource",
-Type:     "file",
-FilePath: filePath,
-MimeType: "text/plain",
-}})
-req := makeReq("resources/read", 1, map[string]interface{}{
-"uri": "gateway://resources/file-res",
-})
-resp := h.Handle(context.Background(), req, nil)
-if resp.Error != nil {
-t.Fatalf("unexpected error: %v", resp.Error.Message)
-}
+	h := buildHandlerDeps(t)
+	// Create an actual file in the data dir
+	content := "hello resource"
+	filePath := "test-resource.txt"
+	fullPath := h.Config.DataDir + "/" + filePath
+	if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	h.Registry.RebuildResources([]*store.ResourceRecord{{
+		ID:       "file-res",
+		Name:     "File Resource",
+		Type:     "file",
+		FilePath: filePath,
+		MimeType: "text/plain",
+	}})
+	req := makeReq("resources/read", 1, map[string]interface{}{
+		"uri": "gateway://resources/file-res",
+	})
+	resp := h.Handle(context.Background(), req, nil)
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error.Message)
+	}
 }
 
 func TestHTTPTransportBodySizeLimitBatch(t *testing.T) {
-h := buildHandlerDeps(t)
-h.Config.MaxRequestBytes = 32
-transport := mcp.NewHTTPTransport(h)
+	h := buildHandlerDeps(t)
+	h.Config.MaxRequestBytes = 32
+	transport := mcp.NewHTTPTransport(h)
 
-// A batch payload bigger than the limit
-big := strings.Repeat(`{"jsonrpc":"2.0"}`, 10)
-req := httptest.NewRequest("POST", "/mcp", strings.NewReader("["+big+"]"))
-w := httptest.NewRecorder()
-transport.Handle(w, req)
-// Should not be 200 OK since the truncated body won't parse as valid JSON
-if w.Code == http.StatusOK {
-t.Error("expected non-200 for oversized batch body")
-}
+	// A batch payload bigger than the limit
+	big := strings.Repeat(`{"jsonrpc":"2.0"}`, 10)
+	req := httptest.NewRequest("POST", "/mcp", strings.NewReader("["+big+"]"))
+	w := httptest.NewRecorder()
+	transport.Handle(w, req)
+	// Should not be 200 OK since the truncated body won't parse as valid JSON
+	if w.Code == http.StatusOK {
+		t.Error("expected non-200 for oversized batch body")
+	}
 }
 
 func TestSSEServerActiveSessionCount(t *testing.T) {
-h := buildHandlerDeps(t)
-srv := mcp.NewSSEServer(h)
-if srv.ActiveSessionCount() != 0 {
-t.Errorf("expected 0 active sessions, got %d", srv.ActiveSessionCount())
-}
+	h := buildHandlerDeps(t)
+	srv := mcp.NewSSEServer(h)
+	if srv.ActiveSessionCount() != 0 {
+		t.Errorf("expected 0 active sessions, got %d", srv.ActiveSessionCount())
+	}
 }

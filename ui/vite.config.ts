@@ -24,8 +24,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/_api': 'http://localhost:8080',
-      '/mcp': 'http://localhost:8080',
+      '/_api': 'http://localhost:9876',
+      '/mcp': 'http://localhost:9876',
     },
   },
 })

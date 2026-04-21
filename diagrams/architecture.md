@@ -14,7 +14,7 @@ graph TB
         direction TB
 
         subgraph HTTP_Layer["HTTP Layer (net/http + cmux)"]
-            CMUX["cmux\nTLS/HTTP Multiplexer\n:8080"]
+            CMUX["cmux\nTLS/HTTP Multiplexer\n:9876"]
         end
 
         subgraph MCP_Transport["MCP Transport Layer"]
@@ -188,10 +188,10 @@ sequenceDiagram
 ```mermaid
 graph LR
     subgraph Docker["🐳 Docker Compose"]
-        GW["mcp-gateway container\nport 8080\nvolume: gateway-data:/data"]
+        GW["mcp-gateway container\nport 9876\nvolume: gateway-data:/data"]
         MOCK["mock-api container\nhttpbin · port 8081"]
     end
-    HOST["Host / Browser"] -->|"8080"| GW
+    HOST["Host / Browser"] -->|"9876"| GW
     GW -->|"HTTP"| MOCK
 ```
 

@@ -73,9 +73,10 @@ type ServerInfo struct {
 }
 
 type Tool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	InputSchema map[string]interface{} `json:"inputSchema"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description,omitempty"`
+	InputSchema  map[string]interface{} `json:"inputSchema"`
+	OutputSchema map[string]interface{} `json:"outputSchema,omitempty"`
 }
 
 type ListToolsResult struct {

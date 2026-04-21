@@ -79,7 +79,7 @@ No stdio transport. No database — all state stored as JSON files in a configur
 
 ### 1. Configuration (`config/`)
 Minimal startup config (env vars + optional `gateway.yaml`):
-- `listen_addr` — default `:8080`
+- `listen_addr` — default `:9876`
 - `data_dir` — path to JSON data directory, default `./data`
 - `log_level` — `debug` | `info` | `warn` | `error`
 - `max_response_bytes` — upstream response truncation limit
@@ -612,7 +612,7 @@ mcp-gateway/
 ## Example `gateway.yaml` (startup config only)
 
 ```yaml
-listen_addr: ":8080"
+listen_addr: ":9876"
 data_dir: "./data"
 log_level: "info"
 max_response_bytes: 1048576   # 1 MB

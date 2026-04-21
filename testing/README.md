@@ -32,7 +32,7 @@ are immediately useful to AI agents.
 ### Upload to the gateway
 
 1. Start the gateway: `make run` (or `make dev`)
-2. Open `http://localhost:8080/_ui/specs`
+2. Open `http://localhost:9876/_ui/specs`
 3. Click **Upload New Spec**
 4. Fill in:
    - **Name**: `Task Manager`
